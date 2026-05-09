@@ -1,34 +1,18 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import { ToastProvider } from "@/components/ui/toast";
 
 export const metadata: Metadata = {
-  title: "eTailor Platform",
-  description:
-    "Multi-tenant tailoring operations platform for customer measurements, jobs, billing, and secure team access.",
+  title: "eTailor — Tailoring Management Platform",
+  description: "Manage customers, jobs, billing, and team operations for your tailoring shop.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

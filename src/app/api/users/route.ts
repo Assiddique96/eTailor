@@ -10,7 +10,7 @@ const createUserSchema = z.object({
   fullName: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(8),
-  roleIds: z.array(z.string().min(1)).min(1),
+  roleId: z.string().optional(),
 });
 
 export async function GET() {
@@ -19,14 +19,19 @@ export async function GET() {
     if (!user.shopId) {
       return NextResponse.json({ error: "Shop context required." }, { status: 400 });
     }
-
     if (!hasPermission(user, "users.manage")) {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
 
     const users = await db.user.findMany({
       where: { shopId: user.shopId },
-      include: { userRoles: { include: { role: true } } },
+      include: {
+        userRoles: {
+          include: {
+            role: true,
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
 
@@ -37,7 +42,8 @@ export async function GET() {
         email: u.email,
         platformRole: u.platformRole,
         isActive: u.isActive,
-        roles: u.userRoles.map((ur) => ur.role.name),
+        createdAt: u.createdAt,
+        userRoles: u.userRoles.map((ur) => ({ role: { name: ur.role.name } })),
       })),
     });
   } catch {
@@ -56,16 +62,19 @@ export async function POST(request: Request) {
     }
 
     const body = createUserSchema.parse(await request.json());
+
     const existing = await db.user.findUnique({ where: { email: body.email } });
     if (existing) {
-      return NextResponse.json({ error: "Email already exists." }, { status: 409 });
+      return NextResponse.json({ error: "Email already in use." }, { status: 409 });
     }
 
-    const roleCount = await db.role.count({
-      where: { id: { in: body.roleIds }, shopId: admin.shopId },
-    });
-    if (roleCount !== body.roleIds.length) {
-      return NextResponse.json({ error: "Invalid role selection." }, { status: 400 });
+    if (body.roleId) {
+      const role = await db.role.findFirst({
+        where: { id: body.roleId, shopId: admin.shopId },
+      });
+      if (!role) {
+        return NextResponse.json({ error: "Invalid role." }, { status: 400 });
+      }
     }
 
     const passwordHash = await bcrypt.hash(body.password, 12);
@@ -76,11 +85,9 @@ export async function POST(request: Request) {
         email: body.email,
         passwordHash,
         platformRole: "EMPLOYEE",
-        userRoles: {
-          createMany: {
-            data: body.roleIds.map((roleId) => ({ roleId })),
-          },
-        },
+        ...(body.roleId
+          ? { userRoles: { create: { roleId: body.roleId } } }
+          : {}),
       },
     });
 
@@ -90,10 +97,13 @@ export async function POST(request: Request) {
       action: "USER_CREATED",
       entity: "User",
       entityId: created.id,
-      metadata: { roleIds: body.roleIds },
+      metadata: { roleId: body.roleId },
     });
 
-    return NextResponse.json({ message: "Employee account created.", id: created.id }, { status: 201 });
+    return NextResponse.json(
+      { message: "Employee account created.", id: created.id },
+      { status: 201 }
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });

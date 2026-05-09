@@ -11,26 +11,32 @@ const createJobSchema = z.object({
   description: z.string().optional(),
   dueDate: z.coerce.date(),
   assignedToId: z.string().optional(),
+  priority: z.number().int().min(1).max(5).default(3),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    if (!user.shopId) {
-      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    }
-    if (!hasPermission(user, "jobs.read")) {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-    }
+    if (!user.shopId) return NextResponse.json({ error: "Shop context required." }, { status: 400 });
+    if (!hasPermission(user, "jobs.read")) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get("status");
+    const page = Math.max(1, Number(searchParams.get("page") || 1));
+    const limit = 200;
 
     const jobs = await db.job.findMany({
-      where: { shopId: user.shopId },
+      where: {
+        shopId: user.shopId,
+        ...(status ? { status: status as never } : {}),
+      },
       include: {
         customer: true,
         assignedTo: { select: { id: true, fullName: true } },
       },
       orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      take: 100,
+      skip: (page - 1) * limit,
+      take: limit,
     });
     return NextResponse.json({ jobs });
   } catch {
@@ -41,21 +47,15 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!user.shopId) {
-      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    }
-    if (!hasPermission(user, "jobs.write")) {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-    }
+    if (!user.shopId) return NextResponse.json({ error: "Shop context required." }, { status: 400 });
+    if (!hasPermission(user, "jobs.write")) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
     const body = createJobSchema.parse(await request.json());
     const customer = await db.customer.findFirst({
       where: { id: body.customerId, shopId: user.shopId },
       select: { id: true },
     });
-    if (!customer) {
-      return NextResponse.json({ error: "Customer not found." }, { status: 404 });
-    }
+    if (!customer) return NextResponse.json({ error: "Customer not found." }, { status: 404 });
 
     const job = await db.job.create({
       data: {
@@ -64,17 +64,9 @@ export async function POST(request: Request) {
         title: body.title,
         description: body.description,
         dueDate: body.dueDate,
+        priority: body.priority,
         createdById: user.id,
         assignedToId: body.assignedToId,
-      },
-    });
-
-    await db.notification.create({
-      data: {
-        shopId: user.shopId,
-        title: "Job due reminder",
-        body: `Job "${job.title}" is due on ${job.dueDate.toDateString()}.`,
-        targetDate: job.dueDate,
       },
     });
 
@@ -89,9 +81,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ job }, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.flatten() }, { status: 400 });
-    }
+    if (error instanceof z.ZodError) return NextResponse.json({ error: error.flatten() }, { status: 400 });
     return NextResponse.json({ error: "Failed to create job." }, { status: 500 });
   }
 }

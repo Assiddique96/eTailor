@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 
 const SESSION_COOKIE = "etailor_session";
 const encoder = new TextEncoder();
+const SESSION_DURATION_DAYS = 7;
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * SESSION_DURATION_DAYS;
 
 type SessionPayload = {
   sub: string;
@@ -13,9 +15,7 @@ type SessionPayload = {
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error("JWT_SECRET is not configured.");
-  }
+  if (!secret) throw new Error("JWT_SECRET is not configured.");
   return encoder.encode(secret);
 }
 
@@ -24,7 +24,7 @@ export async function createSessionToken(payload: SessionPayload) {
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime(`${SESSION_DURATION_DAYS}d`)
     .sign(getJwtSecret());
 }
 
@@ -32,10 +32,10 @@ export async function setSessionCookie(token: string) {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: SESSION_MAX_AGE_SECONDS,
   });
 }
 
@@ -53,8 +53,9 @@ export async function getCurrentUser() {
     const verified = await jwtVerify(token, getJwtSecret());
     const userId = verified.payload.sub;
     if (!userId) return null;
-    return db.user.findUnique({
-      where: { id: userId },
+
+    const user = await db.user.findUnique({
+      where: { id: userId, isActive: true },
       include: {
         userRoles: {
           include: {
@@ -65,6 +66,8 @@ export async function getCurrentUser() {
         },
       },
     });
+
+    return user;
   } catch {
     return null;
   }
@@ -72,8 +75,6 @@ export async function getCurrentUser() {
 
 export async function requireUser() {
   const user = await getCurrentUser();
-  if (!user || !user.isActive) {
-    throw new Error("Unauthorized");
-  }
+  if (!user) throw new Error("Unauthorized");
   return user;
 }
