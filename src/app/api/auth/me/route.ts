@@ -1,0 +1,23 @@
+import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
+
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ user: null }, { status: 401 });
+  }
+
+  return NextResponse.json({
+    user: {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      platformRole: user.platformRole,
+      shopId: user.shopId,
+      roles: user.userRoles.map((r) => r.role.name),
+      permissions: user.userRoles.flatMap((r) =>
+        r.role.permissions.map((p) => p.permission.key)
+      ),
+    },
+  });
+}
