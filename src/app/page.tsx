@@ -12,7 +12,7 @@ const features = [
 const roles = [
   { title: "Shop Owner", sub: "Full access", desc: "Manage customers, jobs, billing, team, settings, and reports." },
   { title: "Employee", sub: "Role-restricted", desc: "Access controlled by assigned permissions per role." },
-  { title: "Super Admin", sub: "Platform-wide", desc: "Global oversight across all shops and compliance monitoring." },
+  //{ title: "Super Admin", sub: "Platform-wide", desc: "Global oversight across all shops and compliance monitoring." },
 ];
 
 export default function Home() {
