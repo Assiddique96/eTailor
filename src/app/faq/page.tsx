@@ -176,7 +176,7 @@ export default function FaqPage() {
             {FAQS.filter((cat) => cat.category === activeCategory).map((cat) => (
               <div key={cat.category}>
                 <h2 className="font-semibold text-lg mb-4">{cat.category}</h2>
-                <div className="card px-5 divide-y" style={{ divideColor: "var(--border)" }}>
+                <div className="card px-5 divide-y" style={{ borderColor: "var(--border)" }}>
                   {cat.items.map((item) => (
                     <FaqItem key={item.q} q={item.q} a={item.a} />
                   ))}
