@@ -11,10 +11,7 @@ type UserWithRoles = User & {
 };
 
 export function hasPermission(user: UserWithRoles, permissionKey: string) {
-  // Super admins and shop owners have full access
   if (user.platformRole === "SUPER_ADMIN") return true;
-  if (user.platformRole === "SHOP_ADMIN") return true;
-
   return user.userRoles.some((userRole) =>
     userRole.role.permissions.some((entry) => entry.permission.key === permissionKey)
   );

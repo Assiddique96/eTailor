@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { hasPermission } from "@/lib/rbac";
+import { sendEmail } from "@/lib/email";
+import { messageTemplate } from "@/lib/email-templates";
 
 const createMessageSchema = z.object({
   customerId: z.string().min(1),
@@ -15,12 +17,8 @@ const createMessageSchema = z.object({
 export async function GET() {
   try {
     const user = await requireUser();
-    if (!user.shopId) {
-      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    }
-    if (!hasPermission(user, "customers.read")) {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-    }
+    if (!user.shopId) return NextResponse.json({ error: "Shop context required." }, { status: 400 });
+    if (!hasPermission(user, "customers.read")) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
     const messages = await db.customerMessage.findMany({
       where: { shopId: user.shopId },
@@ -38,20 +36,39 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!user.shopId) {
-      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    }
-    if (!hasPermission(user, "customers.write")) {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-    }
+    if (!user.shopId) return NextResponse.json({ error: "Shop context required." }, { status: 400 });
+    if (!hasPermission(user, "customers.write")) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
     const body = createMessageSchema.parse(await request.json());
+
     const customer = await db.customer.findFirst({
       where: { id: body.customerId, shopId: user.shopId },
-      select: { id: true },
     });
-    if (!customer) {
-      return NextResponse.json({ error: "Customer not found." }, { status: 404 });
+    if (!customer) return NextResponse.json({ error: "Customer not found." }, { status: 404 });
+
+    const shop = await db.shop.findUnique({
+      where: { id: user.shopId },
+      select: { name: true },
+    });
+
+    // Send real email if channel is EMAIL
+    if (body.channel === "EMAIL") {
+      if (!customer.email) {
+        return NextResponse.json(
+          { error: "Customer has no email address on file." },
+          { status: 400 }
+        );
+      }
+      await sendEmail({
+        to: customer.email,
+        subject: body.subject ?? "Message from your tailor",
+        html: messageTemplate({
+          customerName: `${customer.firstName} ${customer.lastName}`,
+          subject: body.subject ?? "Message from your tailor",
+          body: body.message,
+          shopName: shop?.name ?? "Your Tailor",
+        }),
+      });
     }
 
     const created = await db.customerMessage.create({
@@ -71,12 +88,14 @@ export async function POST(request: Request) {
       action: "CUSTOMER_MESSAGE_SENT",
       entity: "CustomerMessage",
       entityId: created.id,
+      metadata: { channel: body.channel },
     });
 
     return NextResponse.json({ message: created }, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.flatten() }, { status: 400 });
+    if (error instanceof z.ZodError) return NextResponse.json({ error: error.flatten() }, { status: 400 });
+    if (error instanceof Error && error.message.includes("email")) {
+      return NextResponse.json({ error: error.message }, { status: 502 });
     }
     return NextResponse.json({ error: "Failed to send message." }, { status: 500 });
   }
