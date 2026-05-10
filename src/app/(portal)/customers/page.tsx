@@ -19,9 +19,14 @@ export default function CustomersPage() {
   const { toast } = useToast();
 
   async function load(q = "") {
-    const res = await fetch(`/api/customers${q ? `?q=${encodeURIComponent(q)}` : ""}`);
-    const data = await res.json();
-    setCustomers(data.customers ?? []);
+    try {
+      const res = await fetch(`/api/customers${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setCustomers(data.customers ?? []);
+    } catch (e) {
+      console.error("Failed to load customers:", e);
+    }
   }
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);

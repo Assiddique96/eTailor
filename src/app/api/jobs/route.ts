@@ -17,8 +17,10 @@ const createJobSchema = z.object({
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    if (!user.shopId) return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    if (!hasPermission(user, "jobs.read")) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    if (!user.shopId)
+      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
+    if (!hasPermission(user, "jobs.read"))
+      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
@@ -38,6 +40,7 @@ export async function GET(request: Request) {
       skip: (page - 1) * limit,
       take: limit,
     });
+
     return NextResponse.json({ jobs });
   } catch {
     return NextResponse.json({ error: "Failed to fetch jobs." }, { status: 500 });
@@ -47,15 +50,19 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!user.shopId) return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    if (!hasPermission(user, "jobs.write")) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    if (!user.shopId)
+      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
+    if (!hasPermission(user, "jobs.write"))
+      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
     const body = createJobSchema.parse(await request.json());
+
     const customer = await db.customer.findFirst({
       where: { id: body.customerId, shopId: user.shopId },
       select: { id: true },
     });
-    if (!customer) return NextResponse.json({ error: "Customer not found." }, { status: 404 });
+    if (!customer)
+      return NextResponse.json({ error: "Customer not found." }, { status: 404 });
 
     const job = await db.job.create({
       data: {
@@ -81,7 +88,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ job }, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.flatten() }, { status: 400 });
+    if (error instanceof z.ZodError)
+      return NextResponse.json({ error: error.flatten() }, { status: 400 });
     return NextResponse.json({ error: "Failed to create job." }, { status: 500 });
   }
 }

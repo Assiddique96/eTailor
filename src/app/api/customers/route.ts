@@ -15,28 +15,56 @@ const createCustomerSchema = z.object({
   notes: z.string().optional().nullable(),
 });
 
+export async function GET(request: Request) {
+  try {
+    const user = await requireUser();
+    if (!user.shopId)
+      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
+    if (!hasPermission(user, "customers.read"))
+      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+
+    const { searchParams } = new URL(request.url);
+    const q = searchParams.get("q")?.trim();
+    const page = Math.max(1, Number(searchParams.get("page") || 1));
+    const limit = 50;
+
+    const customers = await db.customer.findMany({
+      where: {
+        shopId: user.shopId,
+        ...(q
+          ? {
+              OR: [
+                { firstName: { contains: q, mode: "insensitive" } },
+                { lastName: { contains: q, mode: "insensitive" } },
+                { phone: { contains: q, mode: "insensitive" } },
+                { email: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return NextResponse.json({ customers });
+  } catch {
+    return NextResponse.json({ error: "Failed to fetch customers." }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-
-    if (!user.shopId) {
+    if (!user.shopId)
       return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    }
-
-    // Permission Check
-    if (!hasPermission(user, "customers.write")) {
-      console.error(`User ${user.id} with role ${user.platformRole} denied access to customers.write`);
+    if (!hasPermission(user, "customers.write"))
       return NextResponse.json({ error: "Forbidden: Insufficient permissions." }, { status: 403 });
-    }
 
-    const json = await request.json();
-    const body = createCustomerSchema.parse(json);
+    const body = createCustomerSchema.parse(await request.json());
 
     const customer = await db.customer.create({
-      data: { 
-        ...body, 
-        shopId: user.shopId 
-      },
+      data: { ...body, shopId: user.shopId },
     });
 
     await writeAuditLog({
@@ -49,12 +77,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ customer }, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) {
+    if (error instanceof z.ZodError)
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
-    }
-    console.error("POST Customer Error:", error);
     return NextResponse.json({ error: "Failed to create customer." }, { status: 500 });
   }
 }
-
-// GET remains the same as your previous snippet

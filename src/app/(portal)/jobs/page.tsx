@@ -44,11 +44,22 @@ export default function JobsPage() {
   const { toast } = useToast();
 
   async function load() {
-    const [jr, cr] = await Promise.all([fetch("/api/jobs"), fetch("/api/customers")]);
-    const jd = await jr.json();
-    const cd = await cr.json();
-    setJobs(jd.jobs ?? []);
-    setCustomers(cd.customers ?? []);
+    try {
+      const [jr, cr] = await Promise.all([
+        fetch("/api/jobs"),
+        fetch("/api/customers"),
+      ]);
+      if (jr.ok) {
+        const jd = await jr.json();
+        setJobs(jd.jobs ?? []);
+      }
+      if (cr.ok) {
+        const cd = await cr.json();
+        setCustomers(cd.customers ?? []);
+      }
+    } catch (e) {
+      console.error("Failed to load jobs:", e);
+    }
   }
 
   useEffect(() => { load().finally(() => setLoading(false)); }, []);
