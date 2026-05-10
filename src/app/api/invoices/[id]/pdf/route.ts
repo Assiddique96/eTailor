@@ -85,29 +85,23 @@ export async function GET(
     y = height - 110;
 
     // ── Status badge ─────────────────────────────────────
-    const statusLabel = invoice.paymentStatus;
-    const sColor = statusColor(statusLabel);
-    const badgeW = 70; const badgeH = 20;
-    const radius = 4;
-    const bx = R - badgeW;
-    const by = y - 2;
-    
-    // Replaces drawRectangle with a Rounded Path
-    // M = move to, L = line to, Q = quadratic curve (the corner)
-    const badgePath = `
-      M ${bx + radius} ${by}
-      L ${bx + badgeW - radius} ${by}
-      Q ${bx + badgeW} ${by} ${bx + badgeW} ${by + radius}
-      L ${bx + badgeW} ${by + badgeH - radius}
-      Q ${bx + badgeW} ${by + badgeH} ${bx + badgeW - radius} ${by + badgeH}
-      L ${bx + radius} ${by + badgeH}
-      Q ${bx} ${by + badgeH} ${bx} ${by + badgeH - radius}
-      L ${bx} ${by + radius}
-      Q ${bx} ${by} ${bx + radius} ${by}
-      Z
-    `;
-    
-    page.drawSvgPath(badgePath, { color: sColor });
+// ── Status badge ─────────────────────────────────────
+const statusLabel = invoice.paymentStatus || "PENDING"; // Fallback
+const sColor = statusColor(statusLabel);
+const badgeW = 70; 
+const badgeH = 20;
+const radius = 4;
+
+// Ensure these are absolute numbers
+const bx = Number(R - badgeW);
+const by = Number(y - 2);
+
+// Create the path string on a single line or carefully joined 
+// to prevent unexpected whitespace/undefined issues
+const badgePath = `M ${bx + radius} ${by} L ${bx + badgeW - radius} ${by} Q ${bx + badgeW} ${by} ${bx + badgeW} ${by + radius} L ${bx + badgeW} ${by + badgeH - radius} Q ${bx + badgeW} ${by + badgeH} ${bx + badgeW - radius} ${by + badgeH} L ${bx + radius} ${by + badgeH} Q ${bx} ${by + badgeH} ${bx} ${by + badgeH - radius} L ${bx} ${by + radius} Q ${bx} ${by} ${bx + radius} ${by} Z`;
+
+// Use the path
+page.drawSvgPath(badgePath, { color: sColor });
     
     const sLabelW = bold.widthOfTextAtSize(statusLabel, 9);
     page.drawText(statusLabel, {
