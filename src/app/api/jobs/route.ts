@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { db } from "@/lib/db";
 import { hasPermission } from "@/lib/rbac";
+import { generateTrackingCode } from "@/lib/tracking";
 
 const createJobSchema = z.object({
   customerId: z.string().min(1),
@@ -64,6 +65,16 @@ export async function POST(request: Request) {
     if (!customer)
       return NextResponse.json({ error: "Customer not found." }, { status: 404 });
 
+    // Generate unique tracking code — retry on collision
+    let trackingCode = generateTrackingCode();
+    let attempts = 0;
+    while (attempts < 5) {
+      const existing = await db.job.findUnique({ where: { trackingCode } });
+      if (!existing) break;
+      trackingCode = generateTrackingCode();
+      attempts++;
+    }
+
     const job = await db.job.create({
       data: {
         shopId: user.shopId,
@@ -74,6 +85,7 @@ export async function POST(request: Request) {
         priority: body.priority,
         createdById: user.id,
         assignedToId: body.assignedToId,
+        trackingCode,
       },
     });
 
@@ -83,7 +95,7 @@ export async function POST(request: Request) {
       action: "JOB_CREATED",
       entity: "Job",
       entityId: job.id,
-      metadata: { dueDate: job.dueDate.toISOString() },
+      metadata: { dueDate: job.dueDate.toISOString(), trackingCode },
     });
 
     return NextResponse.json({ job }, { status: 201 });

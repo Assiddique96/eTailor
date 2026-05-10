@@ -11,19 +11,13 @@ type RecentShop = {
   _count: { customers: number; jobs: number; users: number };
 };
 
-const STAT_CONFIG: {
-  key: keyof Stats;
-  label: string;
-  icon: string;
-  sub: (s: Stats) => string;
-  isMoney?: boolean;
-}[] = [
-  { key: "totalShops",     label: "Total Shops",      icon: "🏪", sub: (s) => `${s.activeShops} active` },
+const STAT_CONFIG = [
+  { key: "totalShops",     label: "Total Shops",      icon: "🏪", sub: (s: Stats) => `${s.activeShops} active` },
   { key: "totalUsers",     label: "Platform Users",   icon: "👤", sub: () => "across all shops" },
   { key: "totalCustomers", label: "Total Customers",  icon: "👥", sub: () => "across all shops" },
-  { key: "totalJobs",      label: "Total Jobs",       icon: "🧵", sub: (s) => `${s.activeJobs} active` },
+  { key: "totalJobs",      label: "Total Jobs",       icon: "🧵", sub: (s: Stats) => `${s.activeJobs} active` },
   { key: "totalRevenue",   label: "Platform Revenue", icon: "💰", sub: () => "all payments recorded", isMoney: true },
-];
+] as const;
 
 export default function AdminOverviewPage() {
   const [stats, setStats] = useState<Stats | null>(null);

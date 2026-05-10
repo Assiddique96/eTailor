@@ -29,9 +29,7 @@ export async function GET(request: Request) {
     if (!user.shopId) {
       return NextResponse.json({ error: "Shop context required." }, { status: 400 });
     }
-
-    // Employees need explicit audit.read permission, admins always get access
-    if (user.platformRole === "EMPLOYEE" && !hasPermission(user, "audit.read")) {
+    if (!hasPermission(user, "audit.read")) {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
 

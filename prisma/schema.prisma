@@ -80,6 +80,7 @@ model User {
   invoicesCreated  Invoice[]     @relation("InvoicesCreatedBy")
   paymentsRecorded Payment[]     @relation("PaymentsRecordedBy")
   auditLogs        AuditLog[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Role {
@@ -199,6 +200,7 @@ model Job {
   createdBy        User          @relation("JobsCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   assignedTo       User?         @relation("JobsAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
   invoice          Invoice?
+  trackingCode String   @unique @default("")
 
   @@index([shopId, status, dueDate])
 }
@@ -287,3 +289,15 @@ model AuditLog {
   @@index([shopId, createdAt])
   @@index([userId, createdAt])
 }
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+

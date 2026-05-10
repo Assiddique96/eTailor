@@ -5,7 +5,7 @@ import { useToast } from "@/components/ui/toast";
 
 type Job = {
   id: string; title: string; description?: string; status: string;
-  priority: number; dueDate: string;
+  priority: number; dueDate: string; trackingCode: string;
   customer: { id: string; firstName: string; lastName: string };
   assignedTo?: { id: string; fullName: string } | null;
 };
@@ -205,6 +205,17 @@ export default function JobsPage() {
                         <p className="text-xs text-secondary">{job.customer.firstName} {job.customer.lastName}</p>
                         <p className={`text-xs ${overdue ? "text-danger font-medium" : "text-muted"}`}>
                           {overdue ? "⚠ " : ""}Due {new Date(job.dueDate).toLocaleDateString()}
+                        {job.trackingCode && (
+                          <a
+                            href={`/track/${job.trackingCode}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-mono px-1.5 py-0.5 rounded inline-flex items-center gap-1 hover:opacity-80 transition-opacity"
+                            style={{ background: "var(--brand-light)", color: "var(--brand)" }}
+                          >
+                            📦 {job.trackingCode}
+                          </a>
+                        )}
                         </p>
                         <select
                           value={job.status}
@@ -232,7 +243,7 @@ export default function JobsPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Job</th><th>Customer</th><th>Status</th><th>Due date</th><th>Priority</th>
+                  <th>Job</th><th>Customer</th><th>Tracking</th><th>Status</th><th>Due date</th><th>Priority</th>
                 </tr>
               </thead>
               <tbody>
@@ -245,6 +256,7 @@ export default function JobsPage() {
                         {j.description && <p className="text-xs text-muted">{j.description}</p>}
                       </td>
                       <td className="text-secondary text-sm">{j.customer.firstName} {j.customer.lastName}</td>
+                      <td>{j.trackingCode && <a href={`/track/${j.trackingCode}`} target="_blank" rel="noreferrer" className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--brand-light)", color: "var(--brand)" }}>📦 {j.trackingCode}</a>}</td>
                       <td>
                         <select
                           value={j.status}

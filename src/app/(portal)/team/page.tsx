@@ -222,7 +222,7 @@ export default function TeamPage() {
                         </td>
                         <td className="text-secondary text-sm">{emp.email}</td>
                         <td>
-                          {emp.userRoles.length > 0 ? (
+                          {emp.userRoles?.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {emp.userRoles.map((ur) => (
                                 <span key={ur.role.name} className="badge text-xs" style={{ background: "var(--brand-light)", color: "var(--brand)" }}>
