@@ -88,10 +88,34 @@ export async function GET(
     const statusLabel = invoice.paymentStatus;
     const sColor = statusColor(statusLabel);
     const badgeW = 70; const badgeH = 20;
-    page.drawRectangle({ x: R - badgeW, y: y - 2, width: badgeW, height: badgeH, color: sColor, borderRadius: 4 });
+    const radius = 4;
+    const bx = R - badgeW;
+    const by = y - 2;
+    
+    // Replaces drawRectangle with a Rounded Path
+    // M = move to, L = line to, Q = quadratic curve (the corner)
+    const badgePath = `
+      M ${bx + radius} ${by}
+      L ${bx + badgeW - radius} ${by}
+      Q ${bx + badgeW} ${by} ${bx + badgeW} ${by + radius}
+      L ${bx + badgeW} ${by + badgeH - radius}
+      Q ${bx + badgeW} ${by + badgeH} ${bx + badgeW - radius} ${by + badgeH}
+      L ${bx + radius} ${by + badgeH}
+      Q ${bx} ${by + badgeH} ${bx} ${by + badgeH - radius}
+      L ${bx} ${by + radius}
+      Q ${bx} ${by} ${bx + radius} ${by}
+      Z
+    `;
+    
+    page.drawSvgPath(badgePath, { color: sColor });
+    
     const sLabelW = bold.widthOfTextAtSize(statusLabel, 9);
     page.drawText(statusLabel, {
-      x: R - badgeW / 2 - sLabelW / 2, y: y + 5, size: 9, font: bold, color: WHITE,
+      x: R - badgeW / 2 - sLabelW / 2, 
+      y: y + 5, 
+      size: 9, 
+      font: bold, 
+      color: WHITE,
     });
 
     // ── Bill To / Invoice Details ────────────────────────
