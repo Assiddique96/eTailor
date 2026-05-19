@@ -4,6 +4,7 @@ import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { SWRProvider } from "@/components/swr-provider";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 // Self-hosted via next/font — no render-blocking external request, no layout shift.
 const dmSans = DM_Sans({
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ToastProvider>{children}</ToastProvider>
         </SWRProvider>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
