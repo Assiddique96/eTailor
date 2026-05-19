@@ -53,7 +53,8 @@ export async function POST(request: Request) {
   // 💡 Add 'await' here to unwrap the promise
   const rl = await checkRateLimit(`forgot-password:${ip}`, 3, 15 * 60 * 1000); 
   
-  if (!rl.success) return rateLimitResponse(rl);
+  if (!rl.success) return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
+
 
   // Always return the same response regardless of whether the email exists.
   // This prevents user-enumeration via timing differences or distinct responses.

@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   // 💡 Add 'await' here too
   const rl = await checkRateLimit(`register:${ip}`, 3, 60 * 60 * 1000);
   
-  if (!rl.success) return rateLimitResponse(rl);
+  if (!rl.success) return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
 
   try {
     const json = await request.json();

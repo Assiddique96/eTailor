@@ -12,18 +12,14 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  // 5 attempts per IP per 15 minutes
   const ip = getClientIp(request);
-  
-  // 💡 Add 'await' here to unwrap the promise
   const rl = await checkRateLimit(`login:${ip}`, 5, 15 * 60 * 1000);
-  
-  if (!rl.success) return rateLimitResponse(rl);
+  if (!rl.success) return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
 
   try {
     const body = bodySchema.parse(await request.json());
-    const user = await db.user.findUnique({ where: { email: body.email } });
 
+    const user = await db.user.findUnique({ where: { email: body.email } });
     if (!user || !user.isActive) {
       return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
     }
@@ -38,20 +34,23 @@ export async function POST(request: Request) {
       shopId: user.shopId ?? undefined,
       platformRole: user.platformRole,
     });
+
     await setSessionCookie(token);
 
-    await db.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
-
-    await writeAuditLog({
-      shopId: user.shopId,
-      userId: user.id,
-      action: "LOGIN",
-      entity: "User",
-      entityId: user.id,
-    });
+    // Fire-and-forget non-critical updates (don't let them block or throw)
+    await Promise.allSettled([
+      db.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      }),
+      writeAuditLog({
+        shopId: user.shopId,
+        userId: user.id,
+        action: "LOGIN",
+        entity: "User",
+        entityId: user.id,
+      }),
+    ]);
 
     return NextResponse.json({
       message: "Login successful.",
@@ -67,6 +66,7 @@ export async function POST(request: Request) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
     }
+    console.error("[LOGIN_ERROR]", error); // surfaces the real cause
     return NextResponse.json({ error: "Failed to login." }, { status: 500 });
   }
 }

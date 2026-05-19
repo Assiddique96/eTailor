@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   // 5 attempts per IP per 15 minutes — prevent token brute-forcing
   const ip = getClientIp(request);
   const rl = await checkRateLimit(`reset-password:${ip}`, 5, 15 * 60 * 1000);
-  if (!rl.success) return rateLimitResponse(rl);
+  if (!rl.success) return NextResponse.json({ error: "Rate limit exceeded." }, { status: 429 });
 
   try {
     const { token, password } = schema.parse(await request.json());
