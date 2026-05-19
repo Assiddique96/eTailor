@@ -1,50 +1,35 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { hasPermission } from "@/lib/rbac";
+import { withAuth, ApiError } from "@/lib/api-handler";
 import { db } from "@/lib/db";
 
-export async function GET(request: Request) {
-  try {
-    const user = await requireUser();
-    const { searchParams } = new URL(request.url);
-    const isGlobal = searchParams.get("global") === "true";
+export const GET = withAuth({ requireShop: false }, async ({ request, user }) => {
+  const { searchParams } = new URL(request.url);
+  const isGlobal = searchParams.get("global") === "true";
 
-    // Global audit: super admin only
-    if (isGlobal) {
-      if (user.platformRole !== "SUPER_ADMIN") {
-        return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-      }
-      const logs = await db.auditLog.findMany({
-        include: {
-          user: { select: { fullName: true, email: true } },
-          shop: { select: { name: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 500,
-      });
-      return NextResponse.json({ logs });
-    }
-
-    // Shop-scoped audit
-    if (!user.shopId) {
-      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    }
-    if (!hasPermission(user, "audit.read")) {
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-    }
-
+  if (isGlobal) {
+    if (user.platformRole !== "SUPER_ADMIN") throw new ApiError("Forbidden.", 403);
     const logs = await db.auditLog.findMany({
-      where: { shopId: user.shopId },
       include: {
         user: { select: { fullName: true, email: true } },
         shop: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: 200,
+      take: 500,
     });
-
     return NextResponse.json({ logs });
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch audit logs." }, { status: 500 });
   }
-}
+
+  if (!user.shopId) throw new ApiError("Shop context required.", 400);
+
+  const logs = await db.auditLog.findMany({
+    where: { shopId: user.shopId },
+    include: {
+      user: { select: { fullName: true, email: true } },
+      shop: { select: { name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+
+  return NextResponse.json({ logs });
+});

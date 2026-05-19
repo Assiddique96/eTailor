@@ -41,6 +41,20 @@ enum MessageChannel {
   SMS
 }
 
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+
+enum StyleSelectionMode {
+  CATALOG
+  UPLOAD
+  IMPRESS_ME
+}
+
 model Shop {
   id            String        @id @default(cuid())
   name          String
@@ -48,6 +62,10 @@ model Shop {
   phone         String?
   email         String?
   address       String?
+  logoUrl        String?
+  currency       String   @default("NGN")
+  bankDetails    String?
+  paymentTerms   String?
   isActive      Boolean       @default(true)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
@@ -60,6 +78,9 @@ model Shop {
   messages      CustomerMessage[]
   notifications Notification[]
   auditLogs     AuditLog[]
+  measurementLinks MeasurementLink[]
+  catalogCategories CatalogCategory[]
+  catalogItems      CatalogItem[]
 }
 
 model User {
@@ -79,8 +100,11 @@ model User {
   jobsAssigned     Job[]         @relation("JobsAssignedTo")
   invoicesCreated  Invoice[]     @relation("InvoicesCreatedBy")
   paymentsRecorded Payment[]     @relation("PaymentsRecordedBy")
+  jobComments      JobComment[]
+  notifications    Notification[]
   auditLogs        AuditLog[]
   passwordResetTokens PasswordResetToken[]
+  sessions            Session[]
 }
 
 model Role {
@@ -136,9 +160,7 @@ model Customer {
   lastName         String
   phone            String?
   email            String?
-  gender           String?
-  preferredFit     String?
-  preferredStyle   String?
+  gender           Gender?
   notes            String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -148,6 +170,10 @@ model Customer {
   invoices         Invoice[]
   messages         CustomerMessage[]
   orderHistories   OrderHistory[]
+  measurementLinks MeasurementLink[]
+  styleProfile     CustomerStyleProfile?
+  catalogCategories CatalogCategory[]
+  catalogItems      CatalogItem[]
 
   @@index([shopId, firstName, lastName])
   @@index([phone])
@@ -191,6 +217,8 @@ model Job {
   priority         Int           @default(3)
   dueDate          DateTime
   reminderSentAt   DateTime?
+  depositAmount    Decimal?  @db.Decimal(10, 2)
+  depositPaidAt    DateTime?
   createdById      String
   assignedToId     String?
   createdAt        DateTime      @default(now())
@@ -200,9 +228,41 @@ model Job {
   createdBy        User          @relation("JobsCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   assignedTo       User?         @relation("JobsAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
   invoice          Invoice?
+  materials        JobMaterial[]
+  comments         JobComment[]
   trackingCode String   @unique @default("")
 
   @@index([shopId, status, dueDate])
+}
+
+
+
+model JobComment {
+  id        String   @id @default(cuid())
+  jobId     String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, createdAt])
+}
+
+model JobMaterial {
+  id            String  @id @default(cuid())
+  jobId         String
+  name          String
+  colour        String?
+  quantityMetres Decimal? @db.Decimal(8, 2)
+  unitCost      Decimal? @db.Decimal(10, 2)
+  totalCost     Decimal? @db.Decimal(10, 2)
+  supplier      String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
 }
 
 model Invoice {
@@ -226,8 +286,23 @@ model Invoice {
   job           Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
   createdBy     User          @relation("InvoicesCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   payments      Payment[]
+  lines         InvoiceLine[]
 
   @@unique([shopId, invoiceNumber])
+}
+
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Decimal @default(1) @db.Decimal(8, 2)
+  unitPrice   Decimal @db.Decimal(10, 2)
+  amount      Decimal @db.Decimal(10, 2)
+  sortOrder   Int     @default(0)
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
 }
 
 model Payment {
@@ -261,15 +336,93 @@ model CustomerMessage {
 }
 
 model Notification {
-  id          String   @id @default(cuid())
+  id        String   @id @default(cuid())
+  shopId    String
+  userId    String?
+  type      String   @default("INFO")
+  title     String
+  body      String
+  entityId  String?
+  entityType String?
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, isRead, createdAt])
+  @@index([userId, isRead])
+}
+
+
+model MeasurementLink {
+  id          String    @id @default(cuid())
+  token       String    @unique @default(cuid())
+  customerId  String
   shopId      String
-  title       String
-  body        String
-  targetDate  DateTime?
-  isSent      Boolean  @default(false)
-  sentAt      DateTime?
-  createdAt   DateTime @default(now())
-  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  gender      Gender
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  shop        Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([customerId])
+}
+
+
+model CatalogCategory {
+  id          String        @id @default(cuid())
+  shopId      String
+  name        String
+  description String?
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  shop        Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  items       CatalogItem[]
+  customers   Customer[]
+
+  @@unique([shopId, name])
+  @@index([shopId, sortOrder])
+}
+
+model CatalogItem {
+  id          String          @id @default(cuid())
+  shopId      String
+  categoryId  String
+  name        String
+  description String?
+  imageUrl    String
+  imagePath   String          // ImageKit file path for deletion
+  tags        String[]
+  gender      Gender[]
+  isActive    Boolean         @default(true)
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  shop        Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  category    CatalogCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  selections  CustomerStyleProfile[]
+  customers   Customer[]
+  @@index([shopId, categoryId])
+  @@index([categoryId, sortOrder])
+}
+
+model CustomerStyleProfile {
+  id              String              @id @default(cuid())
+  customerId      String              @unique
+  selectionMode   StyleSelectionMode?
+  catalogItemId   String?             // set when mode = CATALOG
+  uploadedImageUrl String?            // set when mode = UPLOAD
+  uploadedImagePath String?           // ImageKit path for deletion
+  notes           String?
+  updatedAt       DateTime            @updatedAt
+  customer        Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  catalogItem     CatalogItem?        @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
 }
 
 model AuditLog {
@@ -301,3 +454,17 @@ model PasswordResetToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+
+model Session {
+  id        String   @id @default(cuid())
+  jti       String   @unique
+  userId    String
+  revokedAt DateTime?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([jti])
+}

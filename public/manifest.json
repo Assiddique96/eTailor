@@ -1,0 +1,49 @@
+{
+  "name": "eTailor",
+  "short_name": "eTailor",
+  "description": "Tailoring shop management platform",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f7f6f3",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "New job",
+      "short_name": "New job",
+      "description": "Create a new tailoring job",
+      "url": "/jobs?action=new",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Customers",
+      "short_name": "Customers",
+      "description": "View all customers",
+      "url": "/customers",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

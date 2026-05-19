@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createSessionToken, setSessionCookie } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { db } from "@/lib/db";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   shopName: z.string().min(2, "Shop name must be at least 2 characters"),
@@ -21,6 +22,14 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // 3 registrations per IP per hour — prevent account farming
+  const ip = getClientIp(request);
+  
+  // 💡 Add 'await' here too
+  const rl = await checkRateLimit(`register:${ip}`, 3, 60 * 60 * 1000);
+  
+  if (!rl.success) return rateLimitResponse(rl);
+
   try {
     const json = await request.json();
     const result = bodySchema.safeParse(json);
@@ -64,7 +73,7 @@ export async function POST(request: Request) {
       return { shop, owner };
     });
 
-    const token = await createSessionToken({
+    const { token } = await createSessionToken({
       sub: created.owner.id,
       shopId: created.shop.id,
       platformRole: created.owner.platformRole,

@@ -1,61 +1,97 @@
 "use client";
-import { FormEvent, useEffect, useState, useRef } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { Modal } from "@/components/ui/modal";
 
 type Customer = {
-  id: string; firstName: string; lastName: string;
-  phone?: string; email?: string; preferredStyle?: string; createdAt: string;
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  email?: string;
+  gender?: "MALE" | "FEMALE" | "OTHER" | null;
+  preferredStyle?: string;
+  createdAt: string;
+};
+
+const GENDER_LABEL: Record<string, string> = {
+  MALE: "Male",
+  FEMALE: "Female",
+  OTHER: "Other",
+};
+
+const GENDER_ICON: Record<string, string> = {
+  MALE:   "♂",
+  FEMALE: "♀",
+  OTHER:  "⚧",
+};
+
+const DEFAULT_FIELDS = {
+  firstName: "", lastName: "", gender: "" as "" | "MALE" | "FEMALE" | "OTHER",
+  phone: "", email: "", notes: "",
 };
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [query, setQuery] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
   const { toast } = useToast();
+  const [query, setQuery]     = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [fields, setFields]   = useState(DEFAULT_FIELDS);
+  const [errors, setErrors]   = useState<Record<string, string>>({});
 
-  async function load(q = "") {
-    try {
-      const res = await fetch(`/api/customers${q ? `?q=${encodeURIComponent(q)}` : ""}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setCustomers(data.customers ?? []);
-    } catch (e) {
-      console.error("Failed to load customers:", e);
-    }
+  const url = `/api/customers${query ? `?q=${encodeURIComponent(query)}` : ""}`;
+  const { data, isLoading, mutate } = useSWR<{ customers: Customer[]; total: number }>(url, fetcher);
+  const customers = data?.customers ?? [];
+
+  function field<K extends keyof typeof DEFAULT_FIELDS>(name: K) {
+    return {
+      value: fields[name],
+      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+        setFields((f) => ({ ...f, [name]: e.target.value })),
+    };
   }
 
-  useEffect(() => { load().finally(() => setLoading(false)); }, []);
+  function validate() {
+    const e: Record<string, string> = {};
+    if (!fields.firstName.trim()) e.firstName = "First name is required.";
+    if (!fields.lastName.trim())  e.lastName  = "Last name is required.";
+    if (!fields.gender)           e.gender    = "Gender is required for accurate measurements.";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
 
-  // Debounced search
-  useEffect(() => {
-    const t = setTimeout(() => load(query), 350);
-    return () => clearTimeout(t);
-  }, [query]);
+  const closeModal = useCallback(() => {
+    setShowModal(false);
+    setFields(DEFAULT_FIELDS);
+    setErrors({});
+  }, []);
 
-  async function onCreate(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleCreate() {
+    if (!validate()) return;
     setSubmitting(true);
-    const formData = new FormData(e.currentTarget);
     try {
+      const body = Object.fromEntries(
+        Object.entries(fields).filter(([, v]) => v !== "")
+      );
       const res = await fetch("/api/customers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(Object.fromEntries(formData)),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const err = await res.json();
-        toast(err.error || "Failed to create customer.", "error");
+        toast(err.error ?? "Failed to create customer.", "error");
         return;
       }
-      toast("Customer created successfully.");
-      formRef.current?.reset();
-      setShowForm(false);
-      await load(query);
+      toast("Customer created.");
+      mutate();
+      closeModal();
     } catch {
       toast("Network error.", "error");
     } finally {
@@ -63,126 +99,178 @@ export default function CustomersPage() {
     }
   }
 
-  const filtered = customers.filter((c) => {
-    if (!query) return true;
-    const q = query.toLowerCase();
-    return `${c.firstName} ${c.lastName} ${c.phone} ${c.email}`.toLowerCase().includes(q);
-  });
-
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Customers</h1>
-          <p className="text-sm text-secondary mt-0.5">{customers.length} total customers</p>
-        </div>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowForm((v) => !v)}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Add customer
-        </button>
-      </div>
-
-      {/* Add customer form */}
-      {showForm && (
-        <div className="card p-5">
-          <h2 className="font-medium mb-4">New customer</h2>
-          <form ref={formRef} onSubmit={onCreate} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-secondary">First name *</label>
-              <input name="firstName" required className="field" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-secondary">Last name *</label>
-              <input name="lastName" required className="field" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-secondary">Phone</label>
-              <input name="phone" type="tel" className="field" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-secondary">Email</label>
-              <input name="email" type="email" className="field" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-secondary">Preferred style</label>
-              <input name="preferredStyle" placeholder="e.g. Classic, Modern" className="field" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-secondary">Notes</label>
-              <input name="notes" className="field" />
-            </div>
-            <div className="sm:col-span-2 lg:col-span-3 flex gap-2 justify-end pt-1">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowForm(false)}>Cancel</button>
-              <button type="submit" className="btn btn-primary btn-sm" disabled={submitting}>
-                {submitting ? "Saving…" : "Create customer"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      <PageHeader
+        title="Customers"
+        subtitle={data ? `${data.total} total` : undefined}
+        actions={
+          <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
+            + Add customer
+          </button>
+        }
+      />
 
       {/* Search */}
       <div className="relative">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" width="15" height="15"
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name, phone, email…"
           className="field pl-9"
+          aria-label="Search customers"
         />
       </div>
 
       {/* Table */}
       <div className="card overflow-hidden">
-        {loading ? (
+        {isLoading ? (
           <div className="p-4"><TableSkeleton /></div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="text-4xl mb-3">👥</div>
-            <p className="font-medium">{query ? "No customers match your search" : "No customers yet"}</p>
-            <p className="text-sm text-secondary mt-1">{query ? "Try a different search term." : "Add your first customer above."}</p>
-          </div>
+        ) : customers.length === 0 ? (
+          <EmptyState
+            icon="👥"
+            title={query ? "No customers match your search" : "No customers yet"}
+            description={query ? "Try a different search term." : "Add your first customer above."}
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Customer</th>
-                  <th>Contact</th>
-                  <th>Style preference</th>
-                  <th>Added</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 flex items-center justify-center text-xs font-medium flex-shrink-0">
-                          {c.firstName[0]}{c.lastName[0]}
-                        </div>
-                        <span className="font-medium">{c.firstName} {c.lastName}</span>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Gender</th>
+                <th>Contact</th>
+                <th>Style</th>
+                <th>Added</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((c) => (
+                <tr key={c.id}>
+                  <td>
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0"
+                        style={{ background: "var(--brand-light)", color: "var(--brand)" }}
+                        aria-hidden
+                      >
+                        {c.firstName[0]}{c.lastName[0]}
                       </div>
-                    </td>
-                    <td className="text-secondary text-sm">
-                      <div>{c.phone || "—"}</div>
-                      {c.email && <div className="text-xs text-muted">{c.email}</div>}
-                    </td>
-                    <td className="text-secondary text-sm">{c.preferredStyle || "—"}</td>
-                    <td className="text-muted text-xs">{new Date(c.createdAt).toLocaleDateString()}</td>
-                    <td>
-                      <Link href={`/customers/${c.id}`} className="btn btn-ghost btn-sm">
-                        View →
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <span className="font-medium">{c.firstName} {c.lastName}</span>
+                    </div>
+                  </td>
+                  <td>
+                    {c.gender ? (
+                      <span
+                        className="badge text-xs"
+                        style={{
+                          background: c.gender === "MALE"   ? "var(--info-light)"    :
+                                      c.gender === "FEMALE" ? "var(--purple-light)"  : "var(--bg-base)",
+                          color:      c.gender === "MALE"   ? "var(--info)"          :
+                                      c.gender === "FEMALE" ? "var(--purple)"        : "var(--text-muted)",
+                        }}
+                        aria-label={`Gender: ${GENDER_LABEL[c.gender]}`}
+                      >
+                        {GENDER_ICON[c.gender]} {GENDER_LABEL[c.gender]}
+                      </span>
+                    ) : (
+                      <span className="text-muted text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="text-secondary text-sm">
+                    <div>{c.phone || "—"}</div>
+                    {c.email && <div className="text-xs text-muted">{c.email}</div>}
+                  </td>
+                  <td className="text-secondary text-sm">{c.preferredStyle || "—"}</td>
+                  <td className="text-muted text-xs">{new Date(c.createdAt).toLocaleDateString()}</td>
+                  <td>
+                    <Link href={`/customers/${c.id}`} className="btn btn-ghost btn-sm">
+                      View →
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
+
+      {/* Create customer modal */}
+      <Modal
+        open={showModal}
+        onClose={closeModal}
+        title="New customer"
+        footer={
+          <>
+            <button className="btn btn-ghost btn-sm" onClick={closeModal} disabled={submitting}>
+              Cancel
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={handleCreate} disabled={submitting}>
+              {submitting ? "Saving…" : "Create customer"}
+            </button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-secondary">First name *</label>
+            <input className="field" {...field("firstName")} />
+            {errors.firstName && <p className="text-xs text-danger">{errors.firstName}</p>}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-secondary">Last name *</label>
+            <input className="field" {...field("lastName")} />
+            {errors.lastName && <p className="text-xs text-danger">{errors.lastName}</p>}
+          </div>
+
+          {/* Gender — shown prominently because it drives measurement fields */}
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-medium text-secondary">
+              Gender * <span className="text-muted font-normal">(determines measurement fields)</span>
+            </label>
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Gender">
+              {(["MALE", "FEMALE", "OTHER"] as const).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  role="radio"
+                  aria-checked={fields.gender === g}
+                  onClick={() => setFields((f) => ({ ...f, gender: g }))}
+                  className="py-2.5 px-3 rounded-lg border text-sm font-medium transition-colors"
+                  style={{
+                    borderColor: fields.gender === g ? "var(--brand)" : "var(--border)",
+                    background:  fields.gender === g ? "var(--brand-light)" : "var(--bg-card)",
+                    color:       fields.gender === g ? "var(--brand)"  : "var(--text-secondary)",
+                  }}
+                >
+                  {GENDER_ICON[g]} {GENDER_LABEL[g]}
+                </button>
+              ))}
+            </div>
+            {errors.gender && <p className="text-xs text-danger mt-1">{errors.gender}</p>}
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-secondary">Phone</label>
+            <input type="tel" className="field" {...field("phone")} />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-secondary">Email</label>
+            <input type="email" className="field" {...field("email")} />
+          </div>
+
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs font-medium text-secondary">Notes</label>
+            <input className="field" placeholder="Allergies, special requests…" {...field("notes")} />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

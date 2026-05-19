@@ -1,84 +1,71 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser } from "@/lib/auth";
+import { withAuth, ApiError } from "@/lib/api-handler";
 import { writeAuditLog } from "@/lib/audit";
 import { db } from "@/lib/db";
-import { hasPermission } from "@/lib/rbac";
 
 const createCustomerSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  phone: z.string().optional().nullable(),
-  email: z.string().email().optional().nullable(),
-  preferredFit: z.string().optional().nullable(),
+  firstName:     z.string().min(1, "First name is required"),
+  lastName:      z.string().min(1, "Last name is required"),
+  gender:        z.enum(["MALE", "FEMALE", "OTHER"]).optional().nullable(),
+  phone:         z.string().optional().nullable(),
+  email:         z.string().email().optional().nullable(),
+  preferredFit:  z.string().optional().nullable(),
   preferredStyle: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
+  notes:         z.string().optional().nullable(),
 });
 
-export async function GET(request: Request) {
-  try {
-    const user = await requireUser();
-    if (!user.shopId)
-      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    if (!hasPermission(user, "customers.read"))
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+export const GET = withAuth({ permission: "customers.read" }, async ({ request, user }) => {
+  const { searchParams } = new URL(request.url);
+  const q      = searchParams.get("q")?.trim();
+  const cursor = searchParams.get("cursor") ?? undefined;
+  const limit  = 50;
 
-    const { searchParams } = new URL(request.url);
-    const q = searchParams.get("q")?.trim();
-    const page = Math.max(1, Number(searchParams.get("page") || 1));
-    const limit = 50;
+  const where = {
+    shopId: user.shopId!,
+    ...(q ? {
+      OR: [
+        { firstName: { contains: q, mode: "insensitive" as const } },
+        { lastName:  { contains: q, mode: "insensitive" as const } },
+        { phone:     { contains: q, mode: "insensitive" as const } },
+        { email:     { contains: q, mode: "insensitive" as const } },
+      ],
+    } : {}),
+  };
 
-    const customers = await db.customer.findMany({
-      where: {
-        shopId: user.shopId,
-        ...(q
-          ? {
-              OR: [
-                { firstName: { contains: q, mode: "insensitive" } },
-                { lastName: { contains: q, mode: "insensitive" } },
-                { phone: { contains: q, mode: "insensitive" } },
-                { email: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+  const items = await db.customer.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take:    limit + 1,
+    ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+  });
 
-    return NextResponse.json({ customers });
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch customers." }, { status: 500 });
-  }
-}
+  const hasMore    = items.length > limit;
+  const customers  = hasMore ? items.slice(0, limit) : items;
+  const nextCursor = hasMore ? customers[customers.length - 1].id : null;
 
-export async function POST(request: Request) {
-  try {
-    const user = await requireUser();
-    if (!user.shopId)
-      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    if (!hasPermission(user, "customers.write"))
-      return NextResponse.json({ error: "Forbidden: Insufficient permissions." }, { status: 403 });
+  // Provide a total count only for non-cursor (first) pages — avoids full scan on paginated requests
+  const total = !cursor
+    ? await db.customer.count({ where })
+    : null;
 
-    const body = createCustomerSchema.parse(await request.json());
+  return NextResponse.json({ customers, nextCursor, total });
+});
 
-    const customer = await db.customer.create({
-      data: { ...body, shopId: user.shopId },
-    });
+export const POST = withAuth({ permission: "customers.write" }, async ({ request, user }) => {
+  const body = createCustomerSchema.parse(await request.json());
 
-    await writeAuditLog({
-      shopId: user.shopId,
-      userId: user.id,
-      action: "CUSTOMER_CREATED",
-      entity: "Customer",
-      entityId: customer.id,
-    });
+  const customer = await db.customer.create({
+    data: { ...body, shopId: user.shopId! },
+  });
 
-    return NextResponse.json({ customer }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError)
-      return NextResponse.json({ error: error.flatten() }, { status: 400 });
-    return NextResponse.json({ error: "Failed to create customer." }, { status: 500 });
-  }
-}
+  await writeAuditLog({
+    shopId:   user.shopId,
+    userId:   user.id,
+    action:   "CUSTOMER_CREATED",
+    entity:   "Customer",
+    entityId: customer.id,
+  });
+
+  return NextResponse.json({ customer }, { status: 201 });
+});

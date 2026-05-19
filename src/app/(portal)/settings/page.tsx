@@ -1,14 +1,30 @@
 "use client";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTheme } from "@/hooks/use-theme";
+import { ImageUploader } from "@/components/ui/image-uploader";
 
 type ShopSettings = {
-  id: string; name: string; slug: string;
-  email?: string | null; phone?: string | null; address?: string | null;
+  id: string; 
+  name: string; 
+  slug: string;
+  email?: string | null; 
+  phone?: string | null; 
+  address?: string | null;
+  currency?: string;
+  paymentTerms?: string;
+  bankDetails?: string;
+  logoUrl?: string | null;
 };
+
 type Profile = {
-  id: string; fullName: string; email: string; platformRole: string;
+  id: string; 
+  fullName: string; 
+  email: string; 
+  platformRole: string;
 };
 
 function Section({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
@@ -26,16 +42,23 @@ function Section({ title, desc, children }: { title: string; desc: string; child
 export default function SettingsPage() {
   const [shop, setShop]       = useState<ShopSettings | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState<string | null>(null);
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
 
-  useEffect(() => {
-    fetch("/api/settings")
-      .then((r) => r.json())
-      .then((d) => { setShop(d.shop); setProfile(d.profile); })
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: settingsData } = useSWR<{ shop: ShopSettings; profile: Profile }>(
+    "/api/settings", 
+    fetcher, 
+    {
+      onSuccess: (d) => {
+        // TypeScript now automatically knows that 'd' has .shop and .profile!
+        if (d.shop)    setShop(d.shop);
+        if (d.profile) setProfile(d.profile);
+      },
+    }
+  );
+
+  const isLoading = !settingsData && !shop && !profile;
 
   async function save(section: string, e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -90,7 +113,7 @@ export default function SettingsPage() {
             title="Shop profile"
             desc="This information appears on your invoices and is visible to customers on their tracking page."
           >
-            {loading ? (
+            {isLoading ? (
               <div className="card p-5 space-y-3">
                 {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-lg" />)}
               </div>
@@ -113,6 +136,26 @@ export default function SettingsPage() {
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-secondary">Address</label>
                   <input name="address" defaultValue={shop?.address ?? ""} placeholder="e.g. 12 Broad Street, Lagos" className="field" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-secondary">Currency</label>
+                  <select name="currency" defaultValue={shop?.currency ?? "NGN"} className="field">
+                    <option value="NGN">Nigerian Naira (₦)</option>
+                    <option value="USD">US Dollar ($)</option>
+                    <option value="GBP">British Pound (£)</option>
+                    <option value="EUR">Euro (€)</option>
+                    <option value="GHS">Ghanaian Cedi (₵)</option>
+                    <option value="KES">Kenyan Shilling (KSh)</option>
+                    <option value="ZAR">South African Rand (R)</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-secondary">Payment terms</label>
+                  <input name="paymentTerms" defaultValue={shop?.paymentTerms ?? ""} placeholder="e.g. Payment due within 7 days of issue" className="field" />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-medium text-secondary">Bank details</label>
+                  <textarea name="bankDetails" defaultValue={shop?.bankDetails ?? ""} placeholder="Bank name · Account number · Account name — printed on every invoice" className="field" rows={3} />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-secondary">Shop URL slug</label>
@@ -140,7 +183,7 @@ export default function SettingsPage() {
         title="Personal profile"
         desc="Update your display name and email address used to sign in."
       >
-        {loading ? (
+        {isLoading ? (
           <div className="card p-5 space-y-3">
             {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-lg" />)}
           </div>
@@ -195,11 +238,59 @@ export default function SettingsPage() {
         </form>
       </Section>
 
-      <hr className="divider" />
+      <hr style={{ borderColor: "var(--border)" }} />
 
-      {/* ── Danger zone ── */}
-      <Section
-        title="Data export"
+      {/* ── Shop logo ── */}
+      <Section 
+        title="Shop logo" 
+        desc="Shown on your dashboard and printed on invoices. Recommended: square PNG or SVG, at least 256×256 px."
+      >
+        <div className="card p-5 space-y-4">
+          {shop && (
+            <ImageUploader
+              folder={`/etailor/${shop.id}/logo`}
+              fileName="shop-logo"
+              currentUrl={shop.logoUrl?.split("?")[0] ?? null}
+              label="Logo"
+              hint="PNG, JPG or SVG · square · max 5 MB"
+              aspectHint="1:1"
+              onUploaded={async (result) => {
+                const res = await fetch("/api/settings/logo", {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(result),
+                });
+                if (res.ok) {
+                  toast("Logo saved.");
+                  const d = await res.json();
+                  setShop((prev) => prev ? { ...prev, logoUrl: d.logoUrl } : prev);
+                } else {
+                  toast("Failed to save logo.", "error");
+                }
+              }}
+              onError={(msg) => toast(msg, "error")}
+            />
+          )}
+          {shop?.logoUrl && (
+            <button
+              className="btn btn-ghost btn-sm text-danger"
+              onClick={async () => {
+                await fetch("/api/settings/logo", { method: "DELETE" });
+                setShop((prev) => prev ? { ...prev, logoUrl: null } : prev);
+                toast("Logo removed.");
+              }}
+            >
+              Remove logo
+            </button>
+          )}
+        </div>
+      </Section>
+
+      <hr style={{ borderColor: "var(--border)" }} />
+
+      {/* ── Data export ── */}
+      <Section 
+        title="Data export" 
         desc="Download a full export of your shop data including customers, jobs, invoices, and payments."
       >
         <div className="card p-5">
@@ -214,6 +305,42 @@ export default function SettingsPage() {
             </svg>
             Download shop data
           </a>
+        </div>
+      </Section>
+
+      <hr style={{ borderColor: "var(--border)" }} />
+
+      {/* ── Appearance ── */}
+      <Section 
+        title="Appearance" 
+        desc="Choose your preferred colour scheme. 'System' follows your OS setting."
+      >
+        <div className="card p-5">
+          <div
+            className="flex gap-2"
+            role="radiogroup"
+            aria-label="Theme preference"
+          >
+            {(["system", "light", "dark"] as const).map((t) => (
+              <button
+                key={t}
+                role="radio"
+                aria-checked={theme === t}
+                onClick={() => setTheme(t)}
+                className={`flex-1 py-2.5 px-3 rounded-lg border text-sm font-medium capitalize transition-colors ${
+                  theme === t
+                    ? "border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+                    : "border-transparent text-secondary hover:text-primary hover:border-stone-300 dark:hover:border-stone-700"
+                }`}
+                style={{ border: "1px solid" }}
+              >
+                {t === "system" ? "🖥 System" : t === "light" ? "☀️ Light" : "🌙 Dark"}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted mt-3">
+            Preference is saved locally in your browser.
+          </p>
         </div>
       </Section>
     </div>

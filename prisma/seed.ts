@@ -3,14 +3,12 @@ import { db } from "../src/lib/db";
 import { PERMISSIONS } from "../src/lib/permissions";
 
 async function main() {
+  // Upsert every permission key so the database stays in sync with code
   for (const permissionKey of PERMISSIONS) {
     await db.permission.upsert({
       where: { key: permissionKey },
       update: {},
-      create: {
-        key: permissionKey,
-        label: permissionKey,
-      },
+      create: { key: permissionKey, label: permissionKey },
     });
   }
 
@@ -19,6 +17,28 @@ async function main() {
     update: {},
     create: { name: "Demo Tailor", slug: "demo-tailor", email: "demo@etailor.local" },
   });
+
+  // SHOP_ADMIN system role — seeded with ALL permissions so that shop owners
+  // have full access without relying on the blanket RBAC bypass that was removed.
+  const shopAdminRole = await db.role.upsert({
+    where: { shopId_name: { shopId: shop.id, name: "shop-admin" } },
+    update: { description: "Full access — assigned to shop owners." },
+    create: {
+      shopId: shop.id,
+      name: "shop-admin",
+      description: "Full access — assigned to shop owners.",
+      isSystem: true,
+    },
+  });
+  for (const permissionKey of PERMISSIONS) {
+    const permission = await db.permission.findUnique({ where: { key: permissionKey } });
+    if (!permission) continue;
+    await db.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId: shopAdminRole.id, permissionId: permission.id } },
+      update: {},
+      create: { roleId: shopAdminRole.id, permissionId: permission.id },
+    });
+  }
 
   const roleConfigs = [
     {

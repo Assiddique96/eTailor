@@ -3,6 +3,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const schema = z.object({
   email: z.string().email(),
@@ -46,6 +47,17 @@ function passwordResetTemplate({ fullName, resetUrl }: { fullName: string; reset
 }
 
 export async function POST(request: Request) {
+  // 3 requests per IP per 15 minutes — prevent reset-link spam and quota exhaustion
+  const ip = getClientIp(request);
+  
+  // 💡 Add 'await' here to unwrap the promise
+  const rl = await checkRateLimit(`forgot-password:${ip}`, 3, 15 * 60 * 1000); 
+  
+  if (!rl.success) return rateLimitResponse(rl);
+
+  // Always return the same response regardless of whether the email exists.
+  // This prevents user-enumeration via timing differences or distinct responses.
+  const SUCCESS = NextResponse.json({ success: true });
   try {
     const { email } = schema.parse(await request.json());
 
@@ -56,7 +68,7 @@ export async function POST(request: Request) {
 
     // Always return success to prevent email enumeration attacks
     if (!user) {
-      return NextResponse.json({ success: true });
+      return SUCCESS;
     }
 
     // Invalidate any existing unused tokens
@@ -81,7 +93,7 @@ export async function POST(request: Request) {
       html: passwordResetTemplate({ fullName: user.fullName, resetUrl }),
     });
 
-    return NextResponse.json({ success: true });
+    return SUCCESS;
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Invalid email address." }, { status: 400 });

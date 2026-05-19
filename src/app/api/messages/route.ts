@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser } from "@/lib/auth";
+import { withAuth, ApiError } from "@/lib/api-handler";
 import { writeAuditLog } from "@/lib/audit";
 import { db } from "@/lib/db";
-import { hasPermission } from "@/lib/rbac";
 import { sendEmail } from "@/lib/email";
 import { messageTemplate } from "@/lib/email-templates";
 
@@ -14,89 +13,63 @@ const createMessageSchema = z.object({
   message: z.string().min(1),
 });
 
-export async function GET() {
-  try {
-    const user = await requireUser();
-    if (!user.shopId) return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    if (!hasPermission(user, "customers.read")) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+export const GET = withAuth({ permission: "customers.read" }, async ({ user }) => {
+  const messages = await db.customerMessage.findMany({
+    where: { shopId: user.shopId! },
+    include: { customer: true },
+    orderBy: { sentAt: "desc" },
+    take: 100,
+  });
+  return NextResponse.json({ messages });
+});
 
-    const messages = await db.customerMessage.findMany({
-      where: { shopId: user.shopId },
-      include: { customer: true },
-      orderBy: { sentAt: "desc" },
-      take: 100,
-    });
+export const POST = withAuth({ permission: "customers.write" }, async ({ request, user }) => {
+  const body = createMessageSchema.parse(await request.json());
 
-    return NextResponse.json({ messages });
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch messages." }, { status: 500 });
-  }
-}
+  const customer = await db.customer.findFirst({
+    where: { id: body.customerId, shopId: user.shopId! },
+  });
+  if (!customer) throw new ApiError("Customer not found.", 404);
 
-export async function POST(request: Request) {
-  try {
-    const user = await requireUser();
-    if (!user.shopId) return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    if (!hasPermission(user, "customers.write")) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-
-    const body = createMessageSchema.parse(await request.json());
-
-    const customer = await db.customer.findFirst({
-      where: { id: body.customerId, shopId: user.shopId },
-    });
-    if (!customer) return NextResponse.json({ error: "Customer not found." }, { status: 404 });
+  if (body.channel === "EMAIL") {
+    if (!customer.email) throw new ApiError("Customer has no email address on file.", 400);
 
     const shop = await db.shop.findUnique({
-      where: { id: user.shopId },
+      where: { id: user.shopId! },
       select: { name: true },
     });
 
-    // Send real email if channel is EMAIL
-    if (body.channel === "EMAIL") {
-      if (!customer.email) {
-        return NextResponse.json(
-          { error: "Customer has no email address on file." },
-          { status: 400 }
-        );
-      }
-      await sendEmail({
-        to: customer.email,
+    await sendEmail({
+      to: customer.email,
+      subject: body.subject ?? "Message from your tailor",
+      html: messageTemplate({
+        customerName: `${customer.firstName} ${customer.lastName}`,
         subject: body.subject ?? "Message from your tailor",
-        html: messageTemplate({
-          customerName: `${customer.firstName} ${customer.lastName}`,
-          subject: body.subject ?? "Message from your tailor",
-          body: body.message,
-          shopName: shop?.name ?? "Your Tailor",
-        }),
-      });
-    }
-
-    const created = await db.customerMessage.create({
-      data: {
-        shopId: user.shopId,
-        customerId: body.customerId,
-        channel: body.channel,
-        subject: body.subject,
-        message: body.message,
-        sentBy: user.id,
-      },
+        body: body.message,
+        shopName: shop?.name ?? "Your Tailor",
+      }),
     });
-
-    await writeAuditLog({
-      shopId: user.shopId,
-      userId: user.id,
-      action: "CUSTOMER_MESSAGE_SENT",
-      entity: "CustomerMessage",
-      entityId: created.id,
-      metadata: { channel: body.channel },
-    });
-
-    return NextResponse.json({ message: created }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.flatten() }, { status: 400 });
-    if (error instanceof Error && error.message.includes("email")) {
-      return NextResponse.json({ error: error.message }, { status: 502 });
-    }
-    return NextResponse.json({ error: "Failed to send message." }, { status: 500 });
   }
-}
+
+  const created = await db.customerMessage.create({
+    data: {
+      shopId: user.shopId!,
+      customerId: body.customerId,
+      channel: body.channel,
+      subject: body.subject,
+      message: body.message,
+      sentBy: user.id,
+    },
+  });
+
+  await writeAuditLog({
+    shopId: user.shopId,
+    userId: user.id,
+    action: "CUSTOMER_MESSAGE_SENT",
+    entity: "CustomerMessage",
+    entityId: created.id,
+    metadata: { channel: body.channel },
+  });
+
+  return NextResponse.json({ message: created }, { status: 201 });
+});

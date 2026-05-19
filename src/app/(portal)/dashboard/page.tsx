@@ -1,6 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
 import { CardSkeleton, Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 
 type Metrics = { customerCount: number; activeJobs: number; dueSoon: number; revenue: number };
@@ -9,6 +12,7 @@ type JobStatusPoint = { status: string; count: number };
 type RecentJob = { id: string; title: string; status: string; dueDate: string; customer: { firstName: string; lastName: string } };
 
 type DashboardData = {
+  shop?: { name: string; logoUrl?: string | null };
   metrics: Metrics;
   revenueChart: RevenuePoint[];
   jobsChart: JobStatusPoint[];
@@ -16,17 +20,15 @@ type DashboardData = {
 };
 
 const STAT_CONFIG = [
-  { key: "customerCount", label: "Total Customers", icon: "👥", color: "var(--info)",    bg: "var(--info-light)" },
-  { key: "activeJobs",    label: "Active Jobs",     icon: "🧵", color: "var(--warning)", bg: "var(--warning-light)" },
-  { key: "dueSoon",       label: "Due in 7 Days",   icon: "⏰", color: "var(--danger)",  bg: "var(--danger-light)" },
-  { key: "revenue",       label: "Total Revenue",   icon: "💰", color: "var(--success)", bg: "var(--success-light)" },
+  { key: "customerCount", label: "Total Customers", color: "var(--info)",    bg: "var(--info-light)",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+  { key: "activeJobs",    label: "Active Jobs",     color: "var(--warning)", bg: "var(--warning-light)",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg> },
+  { key: "dueSoon",       label: "Due in 7 Days",   color: "var(--danger)",  bg: "var(--danger-light)",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+  { key: "revenue",       label: "Total Revenue",   color: "var(--success)", bg: "var(--success-light)",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
 ] as const;
-
-const STATUS_CLASS: Record<string, string> = {
-  PENDING: "badge badge-pending", IN_PROGRESS: "badge badge-progress",
-  READY_FOR_FITTING: "badge badge-fitting", COMPLETED: "badge badge-completed",
-  DELIVERED: "badge badge-delivered", CANCELLED: "badge badge-cancelled",
-};
 
 const JOB_COLORS = ["#4f46e5","#0284c7","#7c3aed","#059669","#d97706","#dc2626"];
 
@@ -144,17 +146,11 @@ function JobsDonutChart({ data }: { data: JobStatusPoint[] }) {
 }
 
 export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [reminding, setReminding] = useState(false);
   const { toast } = useToast();
+  const [reminding, setReminding] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/dashboard")
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data, isLoading: loading } =
+    useSWR<DashboardData>("/api/dashboard", fetcher);
 
   async function runReminders() {
     setReminding(true);
@@ -195,7 +191,7 @@ export default function DashboardPage() {
             <div key={key} className="card p-5">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-medium text-secondary uppercase tracking-wide">{label}</p>
-                <div className="h-8 w-8 rounded-lg flex items-center justify-center text-base" style={{ background: bg, color }}>
+                <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: bg, color }}>
                   {icon}
                 </div>
               </div>
@@ -265,9 +261,9 @@ export default function DashboardPage() {
                   <tr key={j.id}>
                     <td className="font-medium">{j.title}</td>
                     <td className="text-secondary text-sm">{j.customer.firstName} {j.customer.lastName}</td>
-                    <td><span className={STATUS_CLASS[j.status] ?? "badge"}>{j.status.replace(/_/g, " ")}</span></td>
+                    <td><StatusBadge status={j.status} /></td>
                     <td className="text-sm" style={{ color: overdue ? "var(--danger)" : "var(--text-secondary)" }}>
-                      {overdue && "⚠ "}{new Date(j.dueDate).toLocaleDateString()}
+                      {overdue && <span aria-label="Overdue" title="Overdue">⚠ </span>}{new Date(j.dueDate).toLocaleDateString()}
                     </td>
                   </tr>
                 );

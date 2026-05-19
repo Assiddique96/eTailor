@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createSessionToken, setSessionCookie } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { db } from "@/lib/db";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -11,6 +12,14 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // 5 attempts per IP per 15 minutes
+  const ip = getClientIp(request);
+  
+  // 💡 Add 'await' here to unwrap the promise
+  const rl = await checkRateLimit(`login:${ip}`, 5, 15 * 60 * 1000);
+  
+  if (!rl.success) return rateLimitResponse(rl);
+
   try {
     const body = bodySchema.parse(await request.json());
     const user = await db.user.findUnique({ where: { email: body.email } });
@@ -24,7 +33,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
     }
 
-    const token = await createSessionToken({
+    const { token } = await createSessionToken({
       sub: user.id,
       shopId: user.shopId ?? undefined,
       platformRole: user.platformRole,

@@ -1,83 +1,92 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser } from "@/lib/auth";
+import { withAuth, ApiError } from "@/lib/api-handler";
 import { writeAuditLog } from "@/lib/audit";
 import { db } from "@/lib/db";
-import { hasPermission } from "@/lib/rbac";
+
+const lineSchema = z.object({
+  description: z.string().min(1, "Description is required"),
+  quantity:    z.number().positive().default(1),
+  unitPrice:   z.number().nonnegative(),
+});
 
 const createInvoiceSchema = z.object({
   customerId: z.string().min(1),
-  jobId: z.string().optional(),
-  subtotal: z.number().nonnegative(),
-  discount: z.number().nonnegative().default(0),
-  tax: z.number().nonnegative().default(0),
-  dueAt: z.string().datetime().optional(),
+  jobId:      z.string().optional(),
+  lines:      z.array(lineSchema).min(1, "At least one line item is required"),
+  discount:   z.number().nonnegative().default(0),
+  tax:        z.number().nonnegative().default(0),
+  dueAt:      z.string().datetime().optional(),
 });
 
-export async function GET(request: Request) {
-  try {
-    const user = await requireUser();
-    if (!user.shopId) return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    if (!hasPermission(user, "invoices.read")) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+export const GET = withAuth({ permission: "invoices.read" }, async ({ request, user }) => {
+  const { searchParams } = new URL(request.url);
+  const cursor = searchParams.get("cursor") ?? undefined;
+  const limit  = 50;
 
-    const { searchParams } = new URL(request.url);
-    const page = Math.max(1, Number(searchParams.get("page") || 1));
-    const limit = 50;
+  const items = await db.invoice.findMany({
+    where: { shopId: user.shopId! },
+    include: { customer: true, payments: true, job: true, lines: { orderBy: { sortOrder: "asc" } } },
+    orderBy: { createdAt: "desc" },
+    take:   limit + 1,
+    ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+  });
 
-    const invoices = await db.invoice.findMany({
-      where: { shopId: user.shopId },
-      include: { customer: true, payments: true, job: true },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
-    return NextResponse.json({ invoices });
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch invoices." }, { status: 500 });
-  }
-}
+  const hasMore    = items.length > limit;
+  const invoices   = hasMore ? items.slice(0, limit) : items;
+  const nextCursor = hasMore ? invoices[invoices.length - 1].id : null;
 
-export async function POST(request: Request) {
-  try {
-    const user = await requireUser();
-    if (!user.shopId) return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    if (!hasPermission(user, "invoices.write")) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  return NextResponse.json({ invoices, nextCursor });
+});
 
-    const body = createInvoiceSchema.parse(await request.json());
-    const total = body.subtotal - body.discount + body.tax;
+export const POST = withAuth({ permission: "invoices.write" }, async ({ request, user }) => {
+  const body = createInvoiceSchema.parse(await request.json());
 
-    // Auto-generate sequential invoice number inside a transaction
-    const invoice = await db.$transaction(async (tx) => {
-      const count = await tx.invoice.count({ where: { shopId: user.shopId! } });
-      const invoiceNumber = `INV-${String(count + 1).padStart(4, "0")}`;
+  // Calculate amounts from line items
+  const lines   = body.lines.map((l) => ({ ...l, amount: l.quantity * l.unitPrice }));
+  const subtotal = lines.reduce((sum, l) => sum + l.amount, 0);
+  const total    = subtotal - body.discount + body.tax;
 
-      return tx.invoice.create({
-        data: {
-          shopId: user.shopId!,
-          customerId: body.customerId,
-          jobId: body.jobId,
-          invoiceNumber,
-          subtotal: body.subtotal,
-          discount: body.discount,
-          tax: body.tax,
-          total,
-          dueAt: body.dueAt ? new Date(body.dueAt) : undefined,
-          createdById: user.id,
+  const invoice = await db.$transaction(async (tx) => {
+    const count = await tx.invoice.count({ where: { shopId: user.shopId! } });
+    const invoiceNumber = `INV-${String(count + 1).padStart(4, "0")}`;
+
+    const created = await tx.invoice.create({
+      data: {
+        shopId:      user.shopId!,
+        customerId:  body.customerId,
+        jobId:       body.jobId,
+        invoiceNumber,
+        subtotal,
+        discount:    body.discount,
+        tax:         body.tax,
+        total,
+        dueAt:       body.dueAt ? new Date(body.dueAt) : undefined,
+        createdById: user.id,
+        lines: {
+          createMany: {
+            data: lines.map((l, i) => ({
+              description: l.description,
+              quantity:    l.quantity,
+              unitPrice:   l.unitPrice,
+              amount:      l.amount,
+              sortOrder:   i,
+            })),
+          },
         },
-      });
+      },
+      include: { lines: true },
     });
 
-    await writeAuditLog({
-      shopId: user.shopId,
-      userId: user.id,
-      action: "INVOICE_CREATED",
-      entity: "Invoice",
-      entityId: invoice.id,
-    });
+    await writeAuditLog(
+      { shopId: user.shopId, userId: user.id,
+        action: "INVOICE_CREATED", entity: "Invoice", entityId: created.id,
+        metadata: { total, lineCount: lines.length } },
+      tx
+    );
 
-    return NextResponse.json({ invoice }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.flatten() }, { status: 400 });
-    return NextResponse.json({ error: "Failed to create invoice." }, { status: 500 });
-  }
-}
+    return created;
+  });
+
+  return NextResponse.json({ invoice }, { status: 201 });
+});

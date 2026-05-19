@@ -89,3 +89,51 @@ export function welcomeTemplate({
     </p>
   `, shopName);
 }
+
+export function measurementLinkTemplate({
+  customerName,
+  shopName,
+  url,
+  gender,
+  expiresAt,
+}: {
+  customerName: string;
+  shopName: string;
+  url: string;
+  gender: string;
+  expiresAt: Date;
+}) {
+  const expiryStr = expiresAt.toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+  const genderLabel = gender === "MALE" ? "Male" : gender === "FEMALE" ? "Female" : "General";
+
+  return base(`
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:600;color:#1c1917;">
+      Your measurements are needed
+    </h2>
+    <p style="margin:0 0 20px;color:#57534e;font-size:15px;line-height:1.6;">
+      Hi ${customerName}, <strong>${shopName}</strong> has sent you a secure link to submit
+      your body measurements. This lets your tailor prepare your garments even if you can't
+      visit in person.
+    </p>
+
+    <div style="background:#f7f6f3;border:1px solid #e7e5e4;border-radius:10px;padding:16px 20px;margin-bottom:24px;">
+      <p style="margin:0 0 4px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#a8a29e;">Details</p>
+      <p style="margin:0;font-size:14px;color:#1c1917;"><strong>Measurement type:</strong> ${genderLabel}</p>
+      <p style="margin:4px 0 0;font-size:14px;color:#dc2626;"><strong>Link expires:</strong> ${expiryStr}</p>
+    </div>
+
+    <a href="${url}"
+       style="display:inline-block;background:#4f46e5;color:#fff;font-weight:600;
+              font-size:15px;padding:14px 28px;border-radius:8px;text-decoration:none;
+              margin-bottom:24px;">
+      Submit my measurements →
+    </a>
+
+    <p style="margin:0;font-size:13px;color:#a8a29e;line-height:1.6;">
+      This link is private and single-use. Once submitted, the link expires automatically.
+      If you have any questions, contact ${shopName} directly.
+    </p>
+  `, shopName);
+}

@@ -1,117 +1,172 @@
 "use client";
-import { FormEvent, use, useEffect, useState } from "react";
+import { use } from "react";
 import Link from "next/link";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
 import { TableSkeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/toast";
+import { StatusBadge } from "@/components/ui/badge";
+import { MeasurementPanel } from "@/components/customers/measurement-panel";
+import { StylePanel } from "@/components/customers/style-panel";
+import { RemoteLinkPanel } from "@/components/customers/remote-link-panel";
+import type { Gender } from "@/lib/measurement-fields";
+
+type MeasurementLink = {
+  id: string; token: string; url: string;
+  gender: Gender; expiresAt: string; usedAt: string | null;
+  active: boolean; expired: boolean;
+};
 
 type CustomerDetails = {
-  id: string; firstName: string; lastName: string;
-  phone?: string; email?: string; preferredStyle?: string; gender?: string; notes?: string;
-  measurements: Array<{ id: string; recordedAt: string; chestCm?: string; waistCm?: string; hipCm?: string; shoulderCm?: string; sleeveCm?: string; waistCm2?: string; neckCm?: string; inseamCm?: string }>;
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  email?: string;
+  gender?: Gender | null;
+  preferredStyle?: string;
+  notes?: string;
+  measurements: Array<{ id: string; recordedAt: string; recordedBy?: string | null; [key: string]: unknown }>;
   jobs: Array<{ id: string; title: string; status: string; dueDate: string }>;
   invoices: Array<{ id: string; invoiceNumber: string; total: string; paymentStatus: string }>;
+  measurementLinks: MeasurementLink[];
+  shopId?: string;
+  styleProfile?: { selectionMode: string | null } | null;
 };
 
-const STATUS_CLASS: Record<string, string> = {
-  PENDING: "badge badge-pending", IN_PROGRESS: "badge badge-progress",
-  READY_FOR_FITTING: "badge badge-fitting", COMPLETED: "badge badge-completed",
-  DELIVERED: "badge badge-delivered", CANCELLED: "badge badge-cancelled",
-};
-const PAYMENT_CLASS: Record<string, string> = {
-  PAID: "badge badge-paid", PARTIAL: "badge badge-partial",
-  UNPAID: "badge badge-unpaid", REFUNDED: "badge badge-refunded",
-};
+const GENDER_LABEL: Record<string, string> = { MALE: "Male", FEMALE: "Female", OTHER: "Other" };
 
-export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function CustomerDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
-  const [customer, setCustomer] = useState<CustomerDetails | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<"measurements" | "jobs" | "invoices">("measurements");
-  const { toast } = useToast();
 
-  async function load() {
-    const res = await fetch(`/api/customers/${id}`);
-    const data = await res.json();
-    setCustomer(data.customer ?? null);
-  }
+  const { data, isLoading, mutate } = useSWR<{ customer: CustomerDetails }>(
+    `/api/customers/${id}`,
+    fetcher
+  );
 
-  useEffect(() => { load().finally(() => setLoading(false)); }, [id]);
+  const customer = data?.customer;
 
-  async function onAddMeasurement(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSubmitting(true);
-    const formData = new FormData(e.currentTarget);
-    const body: Record<string, number> = {};
-    for (const [k, v] of formData.entries()) {
-      const n = Number(v);
-      if (n > 0) body[k] = n;
-    }
-    try {
-      const res = await fetch("/api/measurements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerId: id, ...body }),
-      });
-      if (!res.ok) { toast("Failed to save measurements.", "error"); return; }
-      toast("Measurements saved.");
-      (e.target as HTMLFormElement).reset();
-      await load();
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  if (loading) return <div className="space-y-4"><TableSkeleton rows={3} /></div>;
+  if (isLoading) return <div className="space-y-4"><TableSkeleton rows={4} /></div>;
   if (!customer) return <p className="text-secondary">Customer not found.</p>;
 
   const TABS = [
     { id: "measurements", label: "Measurements", count: customer.measurements.length },
+    { id: "styles",       label: "Style",        count: customer.styleProfile ? 1 : 0 },
     { id: "jobs",         label: "Jobs",         count: customer.jobs.length },
     { id: "invoices",     label: "Invoices",     count: customer.invoices.length },
   ] as const;
 
-  const MEASUREMENT_FIELDS = [
-    { name: "chestCm", label: "Chest" }, { name: "waistCm", label: "Waist" },
-    { name: "hipCm", label: "Hip" }, { name: "shoulderCm", label: "Shoulder" },
-    { name: "sleeveCm", label: "Sleeve" }, { name: "neckCm", label: "Neck" },
-    { name: "inseamCm", label: "Inseam" },
-  ];
+  type TabId = typeof TABS[number]["id"];
+
+  return (
+    <CustomerDetailView
+      customer={customer}
+      tabs={TABS}
+      onMutate={() => mutate()}
+    />
+  );
+}
+
+// ─── Inner view component keeps hooks at the top level ───────────────────────
+function CustomerDetailView({
+  customer,
+  tabs,
+  onMutate,
+}: {
+  customer: CustomerDetails;
+  tabs: readonly { id: string; label: string; count: number }[];
+  onMutate: () => void;
+}) {
+  // useState inside a nested component is fine — it's always rendered when customer exists
+  const [activeTab, setActiveTab] = React.useState<string>("measurements");
+
+  const activeLinks = customer.measurementLinks.filter((l) => l.active);
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/customers" className="text-muted hover:text-secondary text-sm">← Customers</Link>
-        </div>
-      </div>
+      {/* Breadcrumb */}
+      <Link href="/customers" className="text-sm text-muted hover:text-secondary inline-flex items-center gap-1">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <path d="M19 12H5m7-7-7 7 7 7"/>
+        </svg>
+        Customers
+      </Link>
 
       {/* Profile card */}
       <div className="card p-5">
         <div className="flex items-start gap-4">
-          <div className="h-14 w-14 rounded-2xl bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 flex items-center justify-center text-xl font-semibold flex-shrink-0">
+          <div
+            className="h-14 w-14 rounded-2xl flex items-center justify-center text-xl font-semibold flex-shrink-0"
+            style={{ background: "var(--brand-light)", color: "var(--brand)" }}
+            aria-hidden
+          >
             {customer.firstName[0]}{customer.lastName[0]}
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-semibold">{customer.firstName} {customer.lastName}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-semibold">
+                {customer.firstName} {customer.lastName}
+              </h1>
+              {customer.gender && (
+                <span
+                  className="badge text-xs"
+                  style={{
+                    background: customer.gender === "MALE"   ? "var(--info-light)"   :
+                                customer.gender === "FEMALE" ? "var(--purple-light)" : "var(--bg-base)",
+                    color:      customer.gender === "MALE"   ? "var(--info)"         :
+                                customer.gender === "FEMALE" ? "var(--purple)"       : "var(--text-muted)",
+                  }}
+                >
+                  {GENDER_LABEL[customer.gender]}
+                </span>
+              )}
+            </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-sm text-secondary">
-              {customer.phone && <span>📞 {customer.phone}</span>}
-              {customer.email && <span>✉️ {customer.email}</span>}
-              {customer.gender && <span>🪪 {customer.gender}</span>}
-              {customer.preferredStyle && <span>👔 {customer.preferredStyle}</span>}
+              {customer.phone && (
+                <span className="flex items-center gap-1">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                  {customer.phone}
+                </span>
+              )}
+              {customer.email && (
+                <span className="flex items-center gap-1">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  {customer.email}
+                </span>
+              )}
+              {customer.preferredStyle && (
+                <span className="flex items-center gap-1">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  {customer.preferredStyle}
+                </span>
+              )}
             </div>
             {customer.notes && (
-              <p className="mt-2 text-sm text-muted bg-stone-50 dark:bg-stone-900 rounded-lg px-3 py-2">{customer.notes}</p>
+              <p
+                className="mt-2 text-sm text-muted rounded-lg px-3 py-2"
+                style={{ background: "var(--bg-base)" }}
+              >
+                {customer.notes}
+              </p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b" style={{ borderColor: "var(--border)" }}>
-        {TABS.map((tab) => (
+      {/* Tab bar */}
+      <div
+        className="flex gap-1 border-b"
+        style={{ borderColor: "var(--border)" }}
+        role="tablist"
+      >
+        {tabs.map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
               activeTab === tab.id
@@ -120,70 +175,60 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             }`}
           >
             {tab.label}
-            <span className="ml-1.5 text-xs rounded-full px-1.5 py-0.5" style={{ background: "var(--bg-base)", color: "var(--text-muted)" }}>
+            <span
+              className="ml-1.5 text-xs rounded-full px-1.5 py-0.5"
+              style={{ background: "var(--bg-base)", color: "var(--text-muted)" }}
+            >
               {tab.count}
             </span>
           </button>
         ))}
       </div>
 
+      {/* ── Measurements tab ── */}
       {activeTab === "measurements" && (
         <div className="space-y-4">
-          <div className="card p-5">
-            <h2 className="font-medium mb-4 text-sm text-secondary uppercase tracking-wide">Add measurement record</h2>
-            <form onSubmit={onAddMeasurement} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {MEASUREMENT_FIELDS.map((f) => (
-                <div key={f.name} className="space-y-1">
-                  <label className="text-xs font-medium text-secondary">{f.label} (cm)</label>
-                  <input name={f.name} type="number" step="0.1" min="0" className="field" />
-                </div>
-              ))}
-              <div className="col-span-2 sm:col-span-4 flex justify-end pt-1">
-                <button type="submit" className="btn btn-primary btn-sm" disabled={submitting}>
-                  {submitting ? "Saving…" : "Save measurements"}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {customer.measurements.length === 0 ? (
-            <p className="text-center text-secondary py-8 text-sm">No measurements recorded yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {customer.measurements.map((m) => (
-                <div key={m.id} className="card p-4">
-                  <p className="text-xs font-medium text-muted mb-2">{new Date(m.recordedAt).toLocaleString()}</p>
-                  <div className="grid grid-cols-3 sm:grid-cols-7 gap-3">
-                    {MEASUREMENT_FIELDS.map((f) => {
-                      const val = m[f.name as keyof typeof m];
-                      return (
-                        <div key={f.name}>
-                          <p className="text-xs text-muted">{f.label}</p>
-                          <p className="font-medium text-sm">{val ? `${val}` : "—"}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <RemoteLinkPanel
+            customerId={customer.id}
+            customerName={`${customer.firstName} ${customer.lastName}`}
+            customerEmail={customer.email}
+            gender={customer.gender ?? null}
+            activeLinks={activeLinks}
+            onCreated={onMutate}
+          />
+          <MeasurementPanel
+            customerId={customer.id}
+            gender={customer.gender ?? null}
+            records={customer.measurements}
+            onSaved={onMutate}
+          />
         </div>
       )}
 
+
+      {/* ── Styles tab ── */}
+      {activeTab === "styles" && (
+        <StylePanel customerId={customer.id} shopId={customer.shopId ?? ""} />
+      )}
+
+      {/* ── Jobs tab ── */}
       {activeTab === "jobs" && (
         <div className="card overflow-hidden">
           {customer.jobs.length === 0 ? (
             <p className="text-center text-secondary py-10 text-sm">No jobs for this customer.</p>
           ) : (
             <table className="data-table">
-              <thead><tr><th>Title</th><th>Status</th><th>Due date</th></tr></thead>
+              <thead>
+                <tr><th>Title</th><th>Status</th><th>Due date</th></tr>
+              </thead>
               <tbody>
                 {customer.jobs.map((j) => (
                   <tr key={j.id}>
                     <td className="font-medium">{j.title}</td>
-                    <td><span className={STATUS_CLASS[j.status] ?? "badge"}>{j.status.replace(/_/g, " ")}</span></td>
-                    <td className="text-secondary text-sm">{new Date(j.dueDate).toLocaleDateString()}</td>
+                    <td><StatusBadge status={j.status} /></td>
+                    <td className="text-secondary text-sm">
+                      {new Date(j.dueDate).toLocaleDateString()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -192,20 +237,32 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         </div>
       )}
 
+      {/* ── Invoices tab ── */}
       {activeTab === "invoices" && (
         <div className="card overflow-hidden">
           {customer.invoices.length === 0 ? (
             <p className="text-center text-secondary py-10 text-sm">No invoices for this customer.</p>
           ) : (
             <table className="data-table">
-              <thead><tr><th>Invoice</th><th>Total</th><th>Status</th><th></th></tr></thead>
+              <thead>
+                <tr><th>Invoice</th><th>Total</th><th>Status</th><th></th></tr>
+              </thead>
               <tbody>
                 {customer.invoices.map((i) => (
                   <tr key={i.id}>
                     <td className="font-medium font-mono text-sm">{i.invoiceNumber}</td>
                     <td>${Number(i.total).toFixed(2)}</td>
-                    <td><span className={PAYMENT_CLASS[i.paymentStatus] ?? "badge"}>{i.paymentStatus}</span></td>
-                    <td><a href={`/api/invoices/${i.id}/pdf`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">PDF</a></td>
+                    <td><StatusBadge status={i.paymentStatus} /></td>
+                    <td>
+                      <a
+                        href={`/api/invoices/${i.id}/pdf`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-ghost btn-sm"
+                      >
+                        PDF
+                      </a>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -216,3 +273,6 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
     </div>
   );
 }
+
+// Need React import for useState inside nested component
+import React from "react";

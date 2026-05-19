@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 
 const schema = z.object({
   token: z.string().min(1),
@@ -9,6 +10,11 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
+  // 5 attempts per IP per 15 minutes — prevent token brute-forcing
+  const ip = getClientIp(request);
+  const rl = await checkRateLimit(`reset-password:${ip}`, 5, 15 * 60 * 1000);
+  if (!rl.success) return rateLimitResponse(rl);
+
   try {
     const { token, password } = schema.parse(await request.json());
 

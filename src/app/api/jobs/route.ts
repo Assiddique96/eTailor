@@ -1,107 +1,101 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser } from "@/lib/auth";
+import { withAuth, ApiError } from "@/lib/api-handler";
 import { writeAuditLog } from "@/lib/audit";
 import { db } from "@/lib/db";
-import { hasPermission } from "@/lib/rbac";
 import { generateTrackingCode } from "@/lib/tracking";
 
 const createJobSchema = z.object({
-  customerId: z.string().min(1),
-  title: z.string().min(1),
-  description: z.string().optional(),
-  dueDate: z.coerce.date(),
-  assignedToId: z.string().optional(),
-  priority: z.number().int().min(1).max(5).default(3),
+  customerId:      z.string().min(1),
+  title:           z.string().min(1),
+  description:     z.string().optional(),
+  dueDate:         z.coerce.date(),
+  assignedToId:    z.string().optional(),
+  priority:        z.number().int().min(1).max(5).default(3),
+  depositAmount:   z.number().nonnegative().optional(),
+  depositPaid:     z.boolean().default(false),
 });
 
-export async function GET(request: Request) {
-  try {
-    const user = await requireUser();
-    if (!user.shopId)
-      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    if (!hasPermission(user, "jobs.read"))
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+export const GET = withAuth({ permission: "jobs.read" }, async ({ request, user }) => {
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get("status");
+  const cursor = searchParams.get("cursor") ?? undefined;
+  const limit  = Math.min(100, Math.max(1, Number(searchParams.get("limit") || 50)));
 
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get("status");
-    const page = Math.max(1, Number(searchParams.get("page") || 1));
-    const limit = 200;
+  const where = {
+    shopId: user.shopId!,
+    ...(status ? { status: status as never } : {}),
+  };
 
-    const jobs = await db.job.findMany({
-      where: {
-        shopId: user.shopId,
-        ...(status ? { status: status as never } : {}),
-      },
-      include: {
-        customer: true,
-        assignedTo: { select: { id: true, fullName: true } },
-      },
-      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+  const items = await db.job.findMany({
+    where,
+    include: {
+      customer:  true,
+      assignedTo: { select: { id: true, fullName: true } },
+      materials:  true,
+      _count:     { select: { comments: true } },
+    },
+    orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+    take:    limit + 1,
+    ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+  });
 
-    return NextResponse.json({ jobs });
-  } catch {
-    return NextResponse.json({ error: "Failed to fetch jobs." }, { status: 500 });
-  }
-}
+  const hasMore  = items.length > limit;
+  const jobs     = hasMore ? items.slice(0, limit) : items;
+  const nextCursor = hasMore ? jobs[jobs.length - 1].id : null;
 
-export async function POST(request: Request) {
-  try {
-    const user = await requireUser();
-    if (!user.shopId)
-      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    if (!hasPermission(user, "jobs.write"))
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  return NextResponse.json({ jobs, nextCursor });
+});
 
-    const body = createJobSchema.parse(await request.json());
+export const POST = withAuth({ permission: "jobs.write" }, async ({ request, user }) => {
+  const body = createJobSchema.parse(await request.json());
 
-    const customer = await db.customer.findFirst({
-      where: { id: body.customerId, shopId: user.shopId },
-      select: { id: true },
-    });
-    if (!customer)
-      return NextResponse.json({ error: "Customer not found." }, { status: 404 });
+  const customer = await db.customer.findFirst({
+    where: { id: body.customerId, shopId: user.shopId! },
+    select: { id: true },
+  });
+  if (!customer) throw new ApiError("Customer not found.", 404);
 
-    // Generate unique tracking code — retry on collision
-    let trackingCode = generateTrackingCode();
-    let attempts = 0;
-    while (attempts < 5) {
-      const existing = await db.job.findUnique({ where: { trackingCode } });
-      if (!existing) break;
-      trackingCode = generateTrackingCode();
-      attempts++;
+  async function tryCreate(code: string): Promise<Awaited<ReturnType<typeof db.job.create>>> {
+    try {
+      return await db.job.create({
+        data: {
+          shopId:        user.shopId!,
+          customerId:    body.customerId,
+          title:         body.title,
+          description:   body.description,
+          dueDate:       body.dueDate,
+          priority:      body.priority,
+          createdById:   user.id,
+          assignedToId:  body.assignedToId,
+          trackingCode:  code,
+          depositAmount: body.depositAmount ?? null,
+          depositPaidAt: body.depositPaid && body.depositAmount ? new Date() : null,
+        },
+      });
+    } catch (e: unknown) {
+      const isUnique = typeof e === "object" && e !== null && "code" in e
+        && (e as { code: string }).code === "P2002";
+      if (isUnique) return tryCreate(generateTrackingCode());
+      throw e;
     }
-
-    const job = await db.job.create({
-      data: {
-        shopId: user.shopId,
-        customerId: body.customerId,
-        title: body.title,
-        description: body.description,
-        dueDate: body.dueDate,
-        priority: body.priority,
-        createdById: user.id,
-        assignedToId: body.assignedToId,
-        trackingCode,
-      },
-    });
-
-    await writeAuditLog({
-      shopId: user.shopId,
-      userId: user.id,
-      action: "JOB_CREATED",
-      entity: "Job",
-      entityId: job.id,
-      metadata: { dueDate: job.dueDate.toISOString(), trackingCode },
-    });
-
-    return NextResponse.json({ job }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError)
-      return NextResponse.json({ error: error.flatten() }, { status: 400 });
-    return NextResponse.json({ error: "Failed to create job." }, { status: 500 });
   }
-}
+
+  const job = await tryCreate(generateTrackingCode());
+
+  await writeAuditLog({
+    shopId:   user.shopId,
+    userId:   user.id,
+    action:   "JOB_CREATED",
+    entity:   "Job",
+    entityId: job.id,
+    metadata: {
+      dueDate:       job.dueDate.toISOString(),
+      trackingCode:  job.trackingCode,
+      depositAmount: job.depositAmount,
+      depositPaid:   !!job.depositPaidAt,
+    },
+  });
+
+  return NextResponse.json({ job }, { status: 201 });
+});

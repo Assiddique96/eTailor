@@ -1,8 +1,9 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { withAuth, ApiError } from "@/lib/api-handler";
+import { writeAuditLog } from "@/lib/audit";
+import { createHash } from "crypto";
 import { db } from "@/lib/db";
-import { hasPermission } from "@/lib/rbac";
 
 // Helpers
 const INDIGO  = rgb(0.31, 0.27, 0.90);
@@ -14,7 +15,7 @@ const DANGER  = rgb(0.86, 0.15, 0.15);
 const WHITE   = rgb(1, 1, 1);
 
 function money(n: number) {
-  return `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₦${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function statusColor(status: string) {
@@ -25,23 +26,30 @@ function statusColor(status: string) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const user = await requireUser();
-    if (!user.shopId)
-      return NextResponse.json({ error: "Shop context required." }, { status: 400 });
-    if (!hasPermission(user, "invoices.read"))
-      return NextResponse.json({ error: "Forbidden." }, { status: 403 });
-
+  return withAuth({ permission: "invoices.read" }, async ({ user }) => {
     const { id } = await context.params;
     const invoice = await db.invoice.findFirst({
-      where: { id, shopId: user.shopId },
-      include: { customer: true, shop: true, payments: true, job: true },
+      where: { id, shopId: user.shopId! },
+      include: { customer: true, shop: { select: { id: true, name: true, email: true, phone: true, address: true, slug: true, logoUrl: true, bankDetails: true, paymentTerms: true, currency: true } }, payments: true, job: true, lines: { orderBy: { sortOrder: "asc" } } },
     });
-    if (!invoice)
-      return NextResponse.json({ error: "Invoice not found." }, { status: 404 });
+    if (!invoice) throw new ApiError("Invoice not found.", 404);
+
+    // ETag based on invoice state — enables 304 Not Modified on repeat downloads
+    const etag = `"${require("crypto").createHash("sha1")
+      .update(`${invoice.id}:${invoice.updatedAt.getTime()}:${invoice.payments.length}`)
+      .digest("hex").slice(0, 16)}"`;
+    if (request.headers.get("if-none-match") === etag) {
+      return new Response(null, { status: 304 });
+    }
+
+    // Fire-and-forget audit — PDF download is read-only, background mode is fine
+    writeAuditLog({
+      shopId: user.shopId, userId: user.id,
+      action: "INVOICE_PDF_DOWNLOADED", entity: "Invoice", entityId: invoice.id,
+    });
 
     // ── Page setup ──────────────────────────────────────
     const pdf  = await PDFDocument.create();
@@ -58,9 +66,34 @@ export async function GET(
     // ── Header band ─────────────────────────────────────
     page.drawRectangle({ x: 0, y: height - 90, width, height: 90, color: INDIGO });
 
+    // Embed shop logo beside the shop name if available
+    let nameX = L;
+    const rawLogoUrl = (invoice.shop as typeof invoice.shop & { logoUrl?: string | null }).logoUrl;
+    const cleanLogoUrl = rawLogoUrl ? rawLogoUrl.split("?")[0] : null;
+    if (cleanLogoUrl) {
+      try {
+        const logoRes = await fetch(cleanLogoUrl);
+        if (logoRes.ok) {
+          const logoBytes = await logoRes.arrayBuffer();
+          const ct = logoRes.headers.get("content-type") ?? "";
+          const logoImg = ct.includes("png")
+            ? await pdf.embedPng(logoBytes)
+            : await pdf.embedJpg(logoBytes);
+          const scaled = logoImg.scaleToFit(52, 52);
+          page.drawImage(logoImg, {
+            x: L,
+            y: height - 76,
+            width:  scaled.width,
+            height: scaled.height,
+          });
+          nameX = L + scaled.width + 10;
+        }
+      } catch { /* logo unavailable — text-only header */ }
+    }
+
     // Shop name
     page.drawText(invoice.shop.name, {
-      x: L, y: height - 38, size: 22, font: bold, color: WHITE,
+      x: nameX, y: height - 38, size: 22, font: bold, color: WHITE,
     });
 
     // Invoice label top-right
@@ -158,16 +191,32 @@ page.drawSvgPath(badgePath, { color: sColor });
     // Table header
     page.drawRectangle({ x: L - 5, y: y - 4, width: R - L + 10, height: 20, color: rgb(0.97, 0.96, 0.95) });
     page.drawText("Description",  { x: col1, y, size: 9, font: bold, color: MUTED });
-    page.drawText("Type",         { x: col2, y, size: 9, font: bold, color: MUTED });
+    page.drawText("Qty",          { x: col2, y, size: 9, font: bold, color: MUTED });
+    page.drawText("Unit (₦)",     { x: col3, y, size: 9, font: bold, color: MUTED });
     page.drawText("Amount",       { x: col4 - bold.widthOfTextAtSize("Amount", 9), y, size: 9, font: bold, color: MUTED });
     y -= 22;
 
-    // Subtotal row
-    page.drawText("Services / Garment work", { x: col1, y, size: 10, font, color: DARK });
-    page.drawText("Subtotal", { x: col2, y, size: 10, font, color: DARK });
-    const subtotalStr = money(Number(invoice.subtotal));
-    page.drawText(subtotalStr, { x: col4 - font.widthOfTextAtSize(subtotalStr, 10), y, size: 10, font, color: DARK });
-    y -= 16;
+    // Render actual line items if present, else fall back to subtotal row
+    const invoiceLines = (invoice as typeof invoice & { lines?: Array<{ description: string; quantity: number; unitPrice: number; amount: number }> }).lines ?? [];
+    if (invoiceLines.length > 0) {
+      for (const line of invoiceLines) {
+        const amtStr  = money(Number(line.amount));
+        const unitStr = money(Number(line.unitPrice));
+        const desc = line.description.length > 44 ? line.description.slice(0, 41) + "…" : line.description;
+        page.drawText(desc,          { x: col1, y, size: 10, font, color: DARK });
+        page.drawText(String(Number(line.quantity)), { x: col2, y, size: 10, font, color: MUTED });
+        page.drawText(unitStr,       { x: col3, y, size: 10, font, color: MUTED });
+        page.drawText(amtStr,        { x: col4 - font.widthOfTextAtSize(amtStr, 10), y, size: 10, font, color: DARK });
+        y -= 16;
+        page.drawLine({ start: { x: L, y: y + 2 }, end: { x: R, y: y + 2 }, thickness: 0.3, color: LIGHT });
+      }
+      y -= 4;
+    } else {
+      const subtotalStr = money(Number(invoice.subtotal));
+      page.drawText("Services / Garment work", { x: col1, y, size: 10, font, color: DARK });
+      page.drawText(subtotalStr, { x: col4 - font.widthOfTextAtSize(subtotalStr, 10), y, size: 10, font, color: DARK });
+      y -= 16;
+    }
 
     if (Number(invoice.discount) > 0) {
       page.drawText("Discount", { x: col1, y, size: 10, font, color: DARK });
@@ -240,6 +289,27 @@ page.drawSvgPath(badgePath, { color: sColor });
       }
     }
 
+    // ── Bank details & payment terms ────────────────────
+    const shopMeta2 = invoice.shop as typeof invoice.shop & { bankDetails?: string; paymentTerms?: string };
+    if (shopMeta2.bankDetails || shopMeta2.paymentTerms) {
+      y -= 16;
+      page.drawLine({ start: { x: L, y }, end: { x: R, y }, thickness: 0.5, color: LIGHT });
+      y -= 14;
+      page.drawText("PAYMENT INSTRUCTIONS", { x: L, y, size: 8, font: bold, color: MUTED });
+      y -= 14;
+      if (shopMeta2.paymentTerms) {
+        page.drawText(shopMeta2.paymentTerms, { x: L, y, size: 10, font: bold, color: DARK });
+        y -= 14;
+      }
+      if (shopMeta2.bankDetails) {
+        const bankLines = shopMeta2.bankDetails.split("\n");
+        for (const bline of bankLines.slice(0, 4)) {
+          page.drawText(bline.trim(), { x: L, y, size: 9, font, color: MUTED });
+          y -= 12;
+        }
+      }
+    }
+
     // ── Footer ───────────────────────────────────────────
     const footerY = 36;
     page.drawLine({ start: { x: L, y: footerY + 18 }, end: { x: R, y: footerY + 18 }, thickness: 0.5, color: LIGHT });
@@ -256,10 +326,9 @@ page.drawSvgPath(badgePath, { color: sColor });
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="invoice-${invoice.invoiceNumber}.pdf"`,
+        "Cache-Control": "private, max-age=300",
+        "ETag": etag,
       },
     });
-  } catch (e) {
-    console.error("PDF generation error:", e);
-    return NextResponse.json({ error: "Failed to generate PDF." }, { status: 500 });
-  }
+  })(request);
 }

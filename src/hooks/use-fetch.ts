@@ -1,30 +1,33 @@
+/**
+ * @deprecated Use SWR directly with the `fetcher` from `@/lib/fetcher` instead.
+ *
+ * This thin wrapper maintains backward compatibility for existing page components
+ * while they are progressively migrated to SWR. It delegates to SWR internally,
+ * so all requests are now cached, deduplicated, and revalidated on focus.
+ *
+ * Migration guide:
+ *   Before:
+ *     const { data, loading, error, refetch } = useFetch<{ jobs: Job[] }>("/api/jobs");
+ *
+ *   After:
+ *     import useSWR from "swr";
+ *     import { fetcher } from "@/lib/fetcher";
+ *     const { data, isLoading, error, mutate } = useSWR<{ jobs: Job[] }>("/api/jobs", fetcher);
+ */
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
 
-export function useFetch<T>(url: string, deps: unknown[] = []) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function useFetch<T>(url: string, _deps: unknown[] = []) {
+  const { data, error, isLoading, mutate } = useSWR<T>(url, fetcher, {
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+  });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(url);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `Request failed (${res.status})`);
-      }
-      setData(await res.json());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url]);
-
-  useEffect(() => { load(); }, [load, ...deps]);
-
-  return { data, loading, error, refetch: load };
+  return {
+    data: data ?? null,
+    loading: isLoading,
+    error: error?.message ?? null,
+    refetch: () => mutate(),
+  };
 }

@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════
@@ -50,7 +49,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg-base: #0f0e0c;
     --bg-card: #1c1917;
     --bg-card-hover: #211e1b;
@@ -88,11 +87,49 @@
   }
 }
 
+/* Manual dark mode override — set via useTheme hook / data-theme attribute */
+[data-theme="dark"] {
+    --bg-base: #0f0e0c;
+    --bg-card: #1c1917;
+    --bg-card-hover: #211e1b;
+    --bg-sidebar: #0a0908;
+    --bg-input: #1c1917;
+
+    --brand: #818cf8;
+    --brand-dark: #a5b4fc;
+    --brand-light: #1e1b4b;
+    --brand-muted: #6366f1;
+
+    --success: #34d399;
+    --success-light: #064e3b;
+    --warning: #fbbf24;
+    --warning-light: #451a03;
+    --danger: #f87171;
+    --danger-light: #450a0a;
+    --info: #38bdf8;
+    --info-light: #0c4a6e;
+
+    --text-primary: #fafaf9;
+    --text-secondary: #a8a29e;
+    --text-muted: #57534e;
+    --text-inverted: #1c1917;
+
+    --border: #292524;
+    --border-strong: #44403c;
+
+    --status-pending-bg: #451a03;   --status-pending-text: #fde68a;
+    --status-progress-bg: #1e3a5f;  --status-progress-text: #93c5fd;
+    --status-fitting-bg: #2e1065;   --status-fitting-text: #c4b5fd;
+    --status-completed-bg: #052e16; --status-completed-text: #86efac;
+    --status-delivered-bg: #022c22; --status-delivered-text: #6ee7b7;
+    --status-cancelled-bg: #450a0a; --status-cancelled-text: #fca5a5;
+}
+
 @theme inline {
   --color-background: var(--bg-base);
   --color-foreground: var(--text-primary);
-  --font-sans: "DM Sans", sans-serif;
-  --font-mono: "DM Mono", monospace;
+  --font-sans: var(--font-sans, "DM Sans", sans-serif);
+  --font-mono: var(--font-mono, "DM Mono", monospace);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -102,7 +139,7 @@ html { font-size: 15px; }
 body {
   background: var(--bg-base);
   color: var(--text-primary);
-  font-family: "DM Sans", sans-serif;
+  font-family: var(--font-sans), sans-serif;
   font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
