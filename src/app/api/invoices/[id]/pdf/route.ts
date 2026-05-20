@@ -38,9 +38,10 @@ export async function GET(
     if (!invoice) throw new ApiError("Invoice not found.", 404);
 
     // ETag based on invoice state — enables 304 Not Modified on repeat downloads
-    const etag = `"${require("crypto").createHash("sha1")
+    const etag = `"${createHash("sha1")
       .update(`${invoice.id}:${invoice.updatedAt.getTime()}:${invoice.payments.length}`)
-      .digest("hex").slice(0, 16)}"`;
+      .digest("hex")
+      .slice(0, 16)}"`;
     if (request.headers.get("if-none-match") === etag) {
       return new Response(null, { status: 304 });
     }

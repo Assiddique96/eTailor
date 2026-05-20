@@ -122,8 +122,8 @@ function SidebarContent({ user, pathname, onNavClick }: SidebarContentProps) {
               {user.platformRole}
             </p>
           </div>
-          <LogoutButton compact />
           <NotificationsBell />
+          <LogoutButton compact />
         </div>
       </div>
     </div>

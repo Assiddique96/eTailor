@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import { ALL_FIELD_NAMES } from "@/lib/measurement-fields";
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 
 /** GET — validate a token and return customer + gender context (public, no auth) */
 export async function GET(
@@ -92,9 +92,9 @@ export async function POST(
   const [measurement] = await db.$transaction([
     db.measurementRecord.create({
       data: {
-        //customerId: link.customerId,
         ...(measurementData as Prisma.MeasurementRecordUncheckedCreateInput),
-        extraJson:  extraJson as Prisma.InputJsonValue | undefined,
+        customerId: link.customerId, // ← after the spread so it wins
+        extraJson: extraJson ?? Prisma.JsonNull,
         recordedBy: "remote-link",
       },
     }),
