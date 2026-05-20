@@ -12,17 +12,23 @@ function getJwtSecret() {
 
 async function getSessionPayload(request: NextRequest) {
   const token = request.cookies.get("etailor_session")?.value;
-  if (!token) return null;
+  if (!token) {
+    console.log("[middleware] No session cookie found");
+    return null;
+  }
   try {
     const { payload } = await jwtVerify(token, getJwtSecret());
     return payload;
-  } catch {
+  } catch (err) {
+    // This will appear in your Vercel function logs
+    console.error("[middleware] JWT verification failed:", err);
     return null;
   }
 }
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
 
   // Protect /admin routes — super admin only
   if (pathname.startsWith("/admin")) {
