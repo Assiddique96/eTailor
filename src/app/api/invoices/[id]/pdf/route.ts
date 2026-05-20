@@ -15,7 +15,7 @@ const DANGER  = rgb(0.86, 0.15, 0.15);
 const WHITE   = rgb(1, 1, 1);
 
 function money(n: number) {
-  return `₦${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `NGN ${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function statusColor(status: string) {
@@ -193,7 +193,7 @@ page.drawSvgPath(badgePath, { color: sColor });
     page.drawRectangle({ x: L - 5, y: y - 4, width: R - L + 10, height: 20, color: rgb(0.97, 0.96, 0.95) });
     page.drawText("Description",  { x: col1, y, size: 9, font: bold, color: MUTED });
     page.drawText("Qty",          { x: col2, y, size: 9, font: bold, color: MUTED });
-    page.drawText("Unit (₦)",     { x: col3, y, size: 9, font: bold, color: MUTED });
+    page.drawText("Unit (NGN)",     { x: col3, y, size: 9, font: bold, color: MUTED });
     page.drawText("Amount",       { x: col4 - bold.widthOfTextAtSize("Amount", 9), y, size: 9, font: bold, color: MUTED });
     y -= 22;
 
