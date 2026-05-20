@@ -49,6 +49,8 @@ export const POST = withAuth({}, async ({ request, user }) => {
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
+// Replace the uploadToImageKit call with better error surfacing:
+try {
   const result = await uploadToImageKit(
     buffer,
     fileName,
@@ -63,4 +65,10 @@ export const POST = withAuth({}, async ({ request, user }) => {
     width:    result.width,
     height:   result.height,
   }, { status: 201 });
+
+} catch (err) {
+  console.error("[UPLOAD_ERROR]", err);
+  const message = err instanceof Error ? err.message : "Upload failed.";
+  throw new ApiError(`ImageKit error: ${message}`, 400);
+}
 });
