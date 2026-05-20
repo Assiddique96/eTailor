@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Sans, DM_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
@@ -21,13 +21,14 @@ const dmMono = DM_Mono({
   display: "swap",
 });
 
-import type { Viewport } from 'next';
-
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   minimumScale: 1,
-  themeColor: '#4f46e5',
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f6f3" }, // ← move these here
+    { media: "(prefers-color-scheme: dark)",  color: "#0f0e0c" },
+  ],
 };
 
 export const metadata: Metadata = {
@@ -47,10 +48,7 @@ export const metadata: Metadata = {
     ],
   },
   manifest: "/manifest.json",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f6f3" },
-    { media: "(prefers-color-scheme: dark)",  color: "#0f0e0c" },
-  ],
+  // ← themeColor removed from here
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

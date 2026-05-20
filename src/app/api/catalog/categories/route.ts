@@ -16,7 +16,10 @@ export const GET = withAuth({ permission: "settings.manage" }, async ({ user }) 
     include: { _count: { select: { items: true } } },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
-  return NextResponse.json({ categories });
+  return NextResponse.json({ 
+    categories,
+    shopId: user.shopId, // ← add this
+  });
 });
 
 export const POST = withAuth({ permission: "settings.manage" }, async ({ request, user }) => {

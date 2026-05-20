@@ -26,7 +26,9 @@ export default function CatalogPage() {
   const [showNewItem, setShowNewItem] = useState(false);
 
   const { data: catData, isLoading: catLoading, mutate: mutateCats } =
-    useSWR<{ categories: Category[] }>("/api/catalog/categories", fetcher);
+    useSWR<{ categories: Category[]; shopId: string }>("/api/catalog/categories", fetcher);
+
+  const shopId = catData?.shopId ?? "";
 
   const itemUrl = activeCatId === "all"
     ? "/api/catalog/items"
@@ -66,8 +68,11 @@ export default function CatalogPage() {
             <button className="btn btn-ghost btn-sm" onClick={() => setShowNewCat(true)}>
               + Category
             </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowNewItem(true)}
-              disabled={categories.length === 0}>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => setShowNewItem(true)}
+              disabled={categories.length === 0}
+            >
               + Add style
             </button>
           </div>
@@ -91,7 +96,9 @@ export default function CatalogPage() {
             </span>
           </button>
 
-          {catLoading && [0,1,2].map(i => <Skeleton key={i} className="h-8 w-full rounded-lg" />)}
+          {catLoading && [0,1,2].map(i => (
+            <Skeleton key={i} className="h-8 w-full rounded-lg" />
+          ))}
 
           {categories.map(cat => (
             <div key={cat.id} className="group flex items-center gap-1">
@@ -111,8 +118,10 @@ export default function CatalogPage() {
                 className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted hover:text-danger transition-all"
                 aria-label={`Delete ${cat.name}`}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
               </button>
             </div>
@@ -138,8 +147,11 @@ export default function CatalogPage() {
                 title="No styles in this category"
                 description={`Click "+ Add style" to upload your first garment image.`}
                 action={
-                  <button className="btn btn-primary btn-sm" onClick={() => setShowNewItem(true)}
-                    disabled={categories.length === 0}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setShowNewItem(true)}
+                    disabled={categories.length === 0}
+                  >
                     + Add style
                   </button>
                 }
@@ -148,7 +160,11 @@ export default function CatalogPage() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {items.map(item => (
-                <CatalogCard key={item.id} item={item} onDelete={() => deleteItem(item.id, item.name)} />
+                <CatalogCard
+                  key={item.id}
+                  item={item}
+                  onDelete={() => deleteItem(item.id, item.name)}
+                />
               ))}
             </div>
           )}
@@ -161,12 +177,19 @@ export default function CatalogPage() {
         onClose={() => setShowNewCat(false)}
         onCreated={() => { mutateCats(); setShowNewCat(false); }}
       />
+
+      {/* key prop forces full remount on each open — clears all state including upload */}
       <NewItemModal
+        key={showNewItem ? "open" : "closed"}
         open={showNewItem}
         onClose={() => setShowNewItem(false)}
         categories={categories}
+        shopId={shopId}
         defaultCategoryId={activeCatId !== "all" ? activeCatId : undefined}
-        onCreated={() => { mutateItems(); setShowNewItem(false); }}
+        onCreated={() => {
+          mutateItems(undefined, { revalidate: true });
+          setShowNewItem(false);
+        }}
       />
     </div>
   );
@@ -175,7 +198,7 @@ export default function CatalogPage() {
 // ── Catalog item card ────────────────────────────────────────────────────────
 function CatalogCard({ item, onDelete }: { item: CatalogItem; onDelete: () => void }) {
   const [hovered, setHovered] = useState(false);
-  const cleanUrl = item.imageUrl.split("?")[0]; // strip fileId param for display
+  const cleanUrl = item.imageUrl.split("?")[0];
 
   return (
     <div
@@ -211,7 +234,8 @@ function CatalogCard({ item, onDelete }: { item: CatalogItem; onDelete: () => vo
           className="mt-2 self-end p-1.5 rounded-lg bg-white/20 hover:bg-red-500 text-white transition-colors"
           aria-label={`Delete ${item.name}`}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" aria-hidden>
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6l-1 14H6L5 6"/>
             <path d="M10 11v6M14 11v6"/>
@@ -243,10 +267,10 @@ function NewCategoryModal({ open, onClose, onCreated }: {
   open: boolean; onClose: () => void; onCreated: () => void;
 }) {
   const { toast } = useToast();
-  const [name, setName]       = useState("");
-  const [desc, setDesc]       = useState("");
-  const [saving, setSaving]   = useState(false);
-  const [error, setError]     = useState("");
+  const [name, setName]     = useState("");
+  const [desc, setDesc]     = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState("");
 
   async function submit() {
     if (!name.trim()) { setError("Category name is required."); return; }
@@ -257,31 +281,51 @@ function NewCategoryModal({ open, onClose, onCreated }: {
       body: JSON.stringify({ name: name.trim(), description: desc.trim() || undefined }),
     });
     setSaving(false);
-    if (res.ok) { toast("Category created."); setName(""); setDesc(""); setError(""); onCreated(); }
-    else { const e = await res.json(); toast(e.error ?? "Failed.", "error"); }
+    if (res.ok) {
+      toast("Category created.");
+      setName(""); setDesc(""); setError("");
+      onCreated();
+    } else {
+      const e = await res.json();
+      toast(e.error ?? "Failed.", "error");
+    }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="New category"
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="New category"
       footer={
         <>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>
+            Cancel
+          </button>
           <button className="btn btn-primary btn-sm" onClick={submit} disabled={saving}>
             {saving ? "Creating…" : "Create"}
           </button>
         </>
-      }>
+      }
+    >
       <div className="space-y-3">
         <div className="space-y-1">
           <label className="text-xs font-medium text-secondary">Category name *</label>
-          <input className="field" value={name} onChange={e => { setName(e.target.value); setError(""); }}
-            placeholder="e.g. Wedding, Corporate, Casual" />
+          <input
+            className="field"
+            value={name}
+            onChange={e => { setName(e.target.value); setError(""); }}
+            placeholder="e.g. Wedding, Corporate, Casual"
+          />
           {error && <p className="text-xs text-danger">{error}</p>}
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-secondary">Description</label>
-          <input className="field" value={desc} onChange={e => setDesc(e.target.value)}
-            placeholder="Optional short description" />
+          <input
+            className="field"
+            value={desc}
+            onChange={e => setDesc(e.target.value)}
+            placeholder="Optional short description"
+          />
         </div>
       </div>
     </Modal>
@@ -289,15 +333,18 @@ function NewCategoryModal({ open, onClose, onCreated }: {
 }
 
 // ── New Item modal ───────────────────────────────────────────────────────────
-function NewItemModal({ open, onClose, categories, defaultCategoryId, onCreated }: {
+function NewItemModal({ open, onClose, categories, defaultCategoryId, onCreated, shopId }: {
   open: boolean; onClose: () => void;
   categories: Category[]; defaultCategoryId?: string;
   onCreated: () => void;
+  shopId: string;
 }) {
   const { toast } = useToast();
   const [fields, setFields] = useState({
-    categoryId: defaultCategoryId ?? categories[0]?.id ?? "",
-    name: "", description: "", tags: "",
+    categoryId:  defaultCategoryId ?? categories[0]?.id ?? "",
+    name:        "",
+    description: "",
+    tags:        "",
   });
   const [itemGenders, setItemGenders] = useState<string[]>([]);
   const [upload, setUpload] = useState<{ url: string; filePath: string; fileId: string } | null>(null);
@@ -320,71 +367,101 @@ function NewItemModal({ open, onClose, categories, defaultCategoryId, onCreated 
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        categoryId: fields.categoryId,
-        name: fields.name.trim(),
+        categoryId:  fields.categoryId,
+        name:        fields.name.trim(),
         description: fields.description.trim() || undefined,
-        imageUrl: upload!.url,
-        imagePath: upload!.filePath,
-        fileId: upload!.fileId,
-        tags: fields.tags.split(",").map(t => t.trim()).filter(Boolean),
+        imageUrl:    upload!.url,
+        imagePath:   upload!.filePath,
+        // fileId intentionally excluded — not a DB column
+        tags:        fields.tags.split(",").map(t => t.trim()).filter(Boolean),
+        gender:      itemGenders,
       }),
     });
     setSaving(false);
     if (res.ok) {
       toast("Style added to catalog.");
-      setFields({ categoryId: defaultCategoryId ?? categories[0]?.id ?? "", name: "", description: "", tags: "" });
-      setItemGenders([]);
-      setUpload(null); setErrors({});
       onCreated();
-    } else { const e = await res.json(); toast(e.error ?? "Failed.", "error"); }
+    } else {
+      const e = await res.json();
+      toast(e.error ?? "Failed.", "error");
+    }
   }
 
-  // Keep category in sync when categories load
   const catId = fields.categoryId || categories[0]?.id || "";
 
   return (
-    <Modal open={open} onClose={onClose} title="Add style to catalog"
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Add style to catalog"
       footer={
         <>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn btn-primary btn-sm" onClick={submit} disabled={saving || !upload}>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>
+            Cancel
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={submit}
+            disabled={saving || !upload}
+          >
             {saving ? "Saving…" : "Add style"}
           </button>
         </>
-      }>
+      }
+    >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs font-medium text-secondary">Category *</label>
-            <select className="field" value={catId}
-              onChange={e => setFields(f => ({ ...f, categoryId: e.target.value }))}>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <select
+              className="field"
+              value={catId}
+              onChange={e => setFields(f => ({ ...f, categoryId: e.target.value }))}
+            >
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
             </select>
-            {errors.categoryId && <p className="text-xs text-danger">{errors.categoryId}</p>}
+            {errors.categoryId && (
+              <p className="text-xs text-danger">{errors.categoryId}</p>
+            )}
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-secondary">Style name *</label>
-            <input className="field" placeholder="e.g. Classic Fitted Suit"
-              value={fields.name} onChange={e => setFields(f => ({ ...f, name: e.target.value }))} />
+            <input
+              className="field"
+              placeholder="e.g. Classic Fitted Suit"
+              value={fields.name}
+              onChange={e => setFields(f => ({ ...f, name: e.target.value }))}
+            />
             {errors.name && <p className="text-xs text-danger">{errors.name}</p>}
           </div>
         </div>
 
         <div className="space-y-1">
           <label className="text-xs font-medium text-secondary">Description</label>
-          <input className="field" placeholder="Brief description of this style"
-            value={fields.description} onChange={e => setFields(f => ({ ...f, description: e.target.value }))} />
+          <input
+            className="field"
+            placeholder="Brief description of this style"
+            value={fields.description}
+            onChange={e => setFields(f => ({ ...f, description: e.target.value }))}
+          />
         </div>
 
         <div className="space-y-1">
           <label className="text-xs font-medium text-secondary">Tags (comma-separated)</label>
-          <input className="field" placeholder="formal, slim-fit, navy"
-            value={fields.tags} onChange={e => setFields(f => ({ ...f, tags: e.target.value }))} />
+          <input
+            className="field"
+            placeholder="formal, slim-fit, navy"
+            value={fields.tags}
+            onChange={e => setFields(f => ({ ...f, tags: e.target.value }))}
+          />
         </div>
 
         <div>
           <label className="text-xs font-medium text-secondary mb-2 block">
-            Gender relevance <span className="text-muted font-normal">(select all that apply)</span>
+            Gender relevance{" "}
+            <span className="text-muted font-normal">(select all that apply)</span>
           </label>
           <div className="flex gap-2" role="group" aria-label="Gender relevance">
             {(["MALE", "FEMALE", "OTHER"] as const).map((g) => {
@@ -394,15 +471,17 @@ function NewItemModal({ open, onClose, categories, defaultCategoryId, onCreated 
                 <button
                   key={g}
                   type="button"
-                  onClick={() => setItemGenders((prev) =>
-                    prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
-                  )}
+                  onClick={() =>
+                    setItemGenders(prev =>
+                      prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]
+                    )
+                  }
                   aria-pressed={on}
                   className="flex-1 py-2 rounded-lg border text-sm font-medium transition-colors"
                   style={{
-                    borderColor: on ? "var(--brand)"      : "var(--border)",
-                    background:  on ? "var(--brand-light)": "var(--bg-card)",
-                    color:       on ? "var(--brand)"      : "var(--text-secondary)",
+                    borderColor: on ? "var(--brand)"       : "var(--border)",
+                    background:  on ? "var(--brand-light)" : "var(--bg-card)",
+                    color:       on ? "var(--brand)"       : "var(--text-secondary)",
                   }}
                 >
                   {labels[g]}
@@ -414,16 +493,22 @@ function NewItemModal({ open, onClose, categories, defaultCategoryId, onCreated 
         </div>
 
         <div>
+          {/* Unique fileName per upload prevents ImageKit from overwriting previous files */}
           <ImageUploader
-            folder={`/etailor/${catId}/catalog/${fields.categoryId}`}
-            fileName={fields.name || "catalog-item"}
+            folder={`/etailor/${shopId}/catalog`}
+            fileName={`${fields.name || "catalog-item"}-${Date.now()}`}
             label="Style image *"
             hint="JPG, PNG or WebP · max 5 MB"
             aspectHint="3:4"
-            onUploaded={result => { setUpload(result); setErrors(e => ({ ...e, image: "" })); }}
+            onUploaded={result => {
+              setUpload(result);
+              setErrors(e => ({ ...e, image: "" }));
+            }}
             onError={msg => toast(msg, "error")}
           />
-          {errors.image && <p className="text-xs text-danger mt-1">{errors.image}</p>}
+          {errors.image && (
+            <p className="text-xs text-danger mt-1">{errors.image}</p>
+          )}
         </div>
       </div>
     </Modal>

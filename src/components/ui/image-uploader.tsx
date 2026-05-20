@@ -11,7 +11,6 @@ type Props = {
   onError?: (msg: string) => void;
   label?: string;
   hint?: string;
-  /** Aspect ratio hint shown in the drop zone, e.g. "1:1" or "4:3" */
   aspectHint?: string;
   disabled?: boolean;
 };
@@ -20,8 +19,8 @@ export function ImageUploader({
   folder, fileName, currentUrl, onUploaded, onError,
   label = "Upload image", hint, aspectHint, disabled,
 }: Props) {
-  const inputRef   = useRef<HTMLInputElement>(null);
-  const [preview, setPreview]     = useState<string | null>(currentUrl ?? null);
+  const inputRef               = useRef<HTMLInputElement>(null);
+  const [preview, setPreview]  = useState<string | null>(currentUrl ?? null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress]   = useState(0);
 
@@ -44,25 +43,53 @@ export function ImageUploader({
     setProgress(10);
 
     try {
+      // Step 1 — fetch auth params from our backend (lightweight, no file transfer)
+      const authRes = await fetch("/api/imagekit/auth");
+      if (!authRes.ok) {
+        onError?.("Failed to get upload credentials.");
+        setPreview(currentUrl ?? null);
+        return;
+      }
+      const { token, expire, signature, publicKey, urlEndpoint } = await authRes.json();
+
+      setProgress(30);
+
+      // Step 2 — upload directly from browser to ImageKit (bypasses Vercel network)
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("folder", folder);
       formData.append("fileName", fileName);
+      formData.append("folder", folder);
+      formData.append("token", token);
+      formData.append("expire", String(expire));
+      formData.append("signature", signature);
+      formData.append("publicKey", publicKey);
+      formData.append("useUniqueFileName", "true");
+      formData.append("responseFields", "fileId,url,filePath,name,width,height");
 
-      setProgress(40);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      setProgress(50);
+
+      const uploadRes = await fetch("https://upload.imagekit.io/api/v1/files/upload", {
+        method: "POST",
+        body: formData,
+      });
+
       setProgress(90);
 
-      if (!res.ok) {
-        const err = await res.json();
-        onError?.(err.error ?? "Upload failed.");
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        onError?.(err.message ?? "Upload failed.");
         setPreview(currentUrl ?? null);
         return;
       }
 
-      const data = await res.json();
+      const data = await uploadRes.json();
       setProgress(100);
-      onUploaded(data);
+
+      onUploaded({
+        url:      data.url,
+        filePath: data.filePath,
+        fileId:   data.fileId,
+      });
     } catch {
       onError?.("Network error during upload.");
       setPreview(currentUrl ?? null);
@@ -138,7 +165,8 @@ export function ImageUploader({
             </p>
             {hint && <p className="text-xs text-muted">{hint}</p>}
             {aspectHint && (
-              <span className="text-xs px-2 py-0.5 rounded" style={{ background: "var(--brand-light)", color: "var(--brand)" }}>
+              <span className="text-xs px-2 py-0.5 rounded"
+                style={{ background: "var(--brand-light)", color: "var(--brand)" }}>
                 {aspectHint} recommended
               </span>
             )}

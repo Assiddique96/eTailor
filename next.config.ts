@@ -21,25 +21,17 @@ for (const key of requiredEnvVars) {
 
 // ─── Security headers ─────────────────────────────────────────────────────────
 const securityHeaders = [
-  // Prevent the page from being embedded in iframes (clickjacking)
   { key: "X-Frame-Options", value: "DENY" },
-  // Don't sniff MIME types from content
   { key: "X-Content-Type-Options", value: "nosniff" },
-  // Only send Referer for same-origin requests
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Restrict powerful browser features
   {
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), payment=()",
   },
-  // Force HTTPS for 1 year, include subdomains
   {
     key: "Strict-Transport-Security",
     value: "max-age=31536000; includeSubDomains",
   },
-  // Content Security Policy
-  // 'unsafe-inline' for styles is required for Tailwind's runtime; tighten once
-  // CSS-in-JS is removed. Google Fonts is allowed for the font import.
   {
     key: "Content-Security-Policy",
     value: [
@@ -47,8 +39,8 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://va.vercel-scripts.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob:",
-      "connect-src 'self'",
+      "img-src 'self' data: blob: https://ik.imagekit.io",
+      "connect-src 'self' https://upload.imagekit.io https://ik.imagekit.io",
       "frame-ancestors 'none'",
     ].join("; "),
   },

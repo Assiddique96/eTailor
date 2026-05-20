@@ -258,7 +258,11 @@ export default function SettingsPage() {
                 const res = await fetch("/api/settings/logo", {
                   method: "PUT",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(result),
+                  body: JSON.stringify({
+                    logoUrl:  result.url,       // ← map url → logoUrl
+                    filePath: result.filePath,
+                    fileId:   result.fileId,
+                  }),
                 });
                 if (res.ok) {
                   toast("Logo saved.");
