@@ -6,15 +6,31 @@ import { MarketingFooter } from "@/components/marketing/footer";
 
 const FAQS = [
   {
+    category: "Introduction",
+    items: [
+      {
+        q: "What is eTailo?",
+        a: "eTailo is a digital tailoring management system designed for local tailors, boutiques, and stitching centers. It helps you replace paper registers with a secure, organized digital system to manage customers, measurements, orders, payments, and catalog photos efficiently.",
+      },
+      {
+        q: "Who is eTailo for?",
+        a: "Local tailors and individual seamstresses",
+        a: "Boutique tailoring shops",
+        a: "Multi-tailor workshops",
+        a: "Stichting centers with multiple workers",
+        a: "Anyone looking to digitize their tailoring business.",
+      },
+  },
+  {
     category: "Getting Started",
     items: [
       {
-        q: "How do I get started with eTailor?",
+        q: "How do I get started with eTailo?",
         a: "Simply click 'Get started free' and register your shop in under a minute. No credit card required. You'll be taken straight to your dashboard where you can start adding customers and jobs immediately.",
       },
       {
-        q: "Do I need any technical knowledge to use eTailor?",
-        a: "Not at all. eTailor is designed to be intuitive for non-technical users. If you can use WhatsApp, you can use eTailor. We also offer onboarding support if you ever need help.",
+        q: "Do I need any technical knowledge to use eTailo?",
+        a: "No. e-Tailo is designed for users with minimal technical knowledge. The interface is intuitive, and the system guides you through customer entry, measurement recording, order tracking, and catalog uploads.",
       },
       {
         q: "Can I import my existing customer data?",
@@ -22,7 +38,7 @@ const FAQS = [
       },
       {
         q: "Is there a mobile app?",
-        a: "A mobile app is currently in development and will be available soon for both iOS and Android. In the meantime, eTailor is fully responsive and works beautifully on any mobile browser.",
+        a: "A mobile app is currently in development and will be available soon for both iOS and Android. In the meantime, eTailo is fully responsive and works beautifully on any mobile browser.",
       },
     ],
   },
@@ -31,6 +47,31 @@ const FAQS = [
     items: [
       {
         q: "How does the job tracking work?",
+        a: "Each job moves through a workflow: Pending → In Progress → Ready for Fitting → Completed → Delivered. You can view this as a Kanban board or a list. You can update the status with one click from either view.",
+      },
+      {
+        q: "Can I send real emails to customers?",
+        a: "Yes. eTailor integrates with Resend to send real emails. When you log a message with the Email channel, the customer receives a professionally formatted email instantly. You can also send job reminders automatically.",
+      },
+      {
+        q: "How do invoice numbers work?",
+        a: "Invoice numbers are automatically generated in sequential order (INV-0001, INV-0002, etc.) so there are no duplicates and no manual entry required.",
+      },
+      {
+        q: "Can I record partial payments?",
+        a: "Yes. You can record multiple payments against a single invoice. The invoice status automatically updates to Partial or Paid based on the total amount collected.",
+      },
+      {
+        q: "What measurement units does eTailor support?",
+        a: "Currently eTailor stores measurements in centimetres. Imperial (inches) support is on our roadmap and will be added in a future update.",
+      },
+    ],
+  },
+  {
+    category: "Pricing & Subscription",
+    items: [
+      {
+        q: "How are the subscription plans structured?",
         a: "Each job moves through a workflow: Pending → In Progress → Ready for Fitting → Completed → Delivered. You can view this as a Kanban board or a list. You can update the status with one click from either view.",
       },
       {
