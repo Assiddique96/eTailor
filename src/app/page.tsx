@@ -145,7 +145,7 @@ export default function HomePage() {
           </h1>
 
           <p className="text-lg text-secondary max-w-2xl mx-auto leading-relaxed mb-8">
-            eTailor gives you everything you need to manage customers, track orders,
+            eTailo gives you everything you need to manage customers, track orders,
             send invoices, and coordinate your team — all in one beautifully simple platform.
           </p>
 
@@ -358,7 +358,7 @@ export default function HomePage() {
               Ready to transform your tailoring business?
             </h2>
             <p className="text-indigo-200 max-w-xl mx-auto mb-8">
-              Join thousands of tailors already using eTailor to save time, reduce errors, and delight their customers.
+              Join thousands of tailors already using eTailo to save time, reduce errors, and delight their customers.
             </p>
             <div className="flex flex-wrap gap-3 justify-center">
               <Link href="/register" className="btn" style={{ background: "white", color: "var(--brand)", padding: "0.75rem 1.75rem", fontSize: "0.9375rem", fontWeight: 600 }}>
