@@ -1,4 +1,11 @@
+import { useState } from "react";
+import Link from "next/link";
+import { MarketingNav } from "@/components/marketing/nav";
+import { MarketingFooter } from "@/components/marketing/footer";
+
 export default function PrivacyPage() {
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+
   const sections = [
     {
       title: "Introduction",
@@ -107,74 +114,107 @@ export default function PrivacyPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:flex-row md:py-16">
-        {/* Left column: Page title, meta, and outline */}
-        <aside className="md:w-64 md:flex-none">
-          <div className="mb-6">
-            <p className="text-xs font-medium uppercase tracking-wide text-primary/70">
-              Legal
-            </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-              Privacy Policy
-            </h1>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Last updated: May 31, 2026
-            </p>
-          </div>
+    <div className="flex min-h-screen flex-col bg-background">
+      {/* Global marketing nav */}
+      <MarketingNav />
 
-          {/* Outline / quick navigation */}
-          <div className="hidden rounded-lg border bg-card/50 p-3 text-sm shadow-sm md:block">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              On this page
-            </p>
-            <nav className="space-y-1">
-              {outline.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className="block rounded px-2 py-1 text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
-                >
-                  {item.title}
-                </a>
-              ))}
-            </nav>
-          </div>
-        </aside>
+      <main className="flex-1">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:flex-row md:py-16">
+          {/* Left column: Page title, meta, and outline */}
+          <aside className="md:w-64 md:flex-none">
+            <div className="mb-6">
+              <p className="text-xs font-medium uppercase tracking-wide text-primary/70">
+                Legal
+              </p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+                Privacy Policy
+              </h1>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Last updated: May 31, 2026
+              </p>
+            </div>
 
-        {/* Right column: Content */}
-        <main className="flex-1 rounded-xl border bg-card/70 p-5 shadow-sm md:p-8">
-          <div className="prose prose-sm max-w-none dark:prose-invert">
-            {sections.map((section, sectionIndex) => {
-              const id = `${section.title
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, "-")}-${sectionIndex}`;
+            {/* Outline / quick navigation */}
+            <div className="hidden rounded-lg border bg-card/50 p-3 text-sm shadow-sm md:block">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                On this page
+              </p>
+              <nav className="space-y-1">
+                {outline.map((item) => (
+                  <button
+                    key={item.href}
+                    type="button"
+                    onClick={() => {
+                      setActiveSection(item.href);
+                      const el = document.querySelector(item.href);
+                      if (el) {
+                        el.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
+                    }}
+                    className={`block w-full rounded px-2 py-1 text-left text-xs transition ${
+                      activeSection === item.href
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground"
+                    }`}
+                  >
+                    {item.title}
+                  </button>
+                ))}
+              </nav>
+            </div>
 
-              return (
-                <section key={section.title} id={id} className="scroll-m-24">
-                  <h2 className="mb-2 text-base font-semibold tracking-tight">
-                    {section.title}
-                  </h2>
-                  {section.content.map((paragraph, index) => (
-                    <p key={index} className="mb-2 text-xs leading-relaxed text-muted-foreground">
-                      {paragraph}
-                    </p>
-                  ))}
-                  {sectionIndex !== sections.length - 1 && (
-                    <hr className="my-4 border-dashed border-border" />
-                  )}
-                </section>
-              );
-            })}
-          </div>
+            {/* Link back to FAQs or other legal pages if needed */}
+            <div className="mt-4 hidden text-xs text-muted-foreground md:block">
+              <span>Looking for something else? </span>
+              <Link
+                href="/faq"
+                className="font-medium text-primary underline-offset-2 hover:underline"
+              >
+                Visit FAQs
+              </Link>
+            </div>
+          </aside>
 
-          {/* Footer note */}
-          <div className="mt-6 rounded-md bg-muted/60 px-3 py-2 text-[11px] text-muted-foreground">
-            This Privacy Policy is provided for transparency and may be updated as
-            our services or legal requirements change.
-          </div>
-        </main>
-      </div>
+          {/* Right column: Content */}
+          <section className="flex-1 rounded-xl border bg-card/70 p-5 shadow-sm md:p-8">
+            <div className="prose prose-sm max-w-none dark:prose-invert">
+              {sections.map((section, sectionIndex) => {
+                const id = `${section.title
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "-")}-${sectionIndex}`;
+
+                return (
+                  <article key={section.title} id={id} className="scroll-m-24">
+                    <h2 className="mb-2 text-base font-semibold tracking-tight">
+                      {section.title}
+                    </h2>
+                    {section.content.map((paragraph, index) => (
+                      <p
+                        key={index}
+                        className="mb-2 text-xs leading-relaxed text-muted-foreground"
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                    {sectionIndex !== sections.length - 1 && (
+                      <hr className="my-4 border-dashed border-border" />
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+
+            {/* Footer note inside card */}
+            <div className="mt-6 rounded-md bg-muted/60 px-3 py-2 text-[11px] text-muted-foreground">
+              This Privacy Policy is provided for transparency and may be updated as
+              our services or legal requirements change.
+            </div>
+          </section>
+        </div>
+      </main>
+
+      {/* Global marketing footer */}
+      <MarketingFooter />
     </div>
   );
 }
