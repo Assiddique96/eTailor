@@ -51,7 +51,7 @@ const FAQS = [
       },
       {
         q: "Can I send real emails to customers?",
-        a: "Yes. eTailor integrates with Resend to send real emails. When you log a message with the Email channel, the customer receives a professionally formatted email instantly. You can also send job reminders automatically.",
+        a: "Yes. eTailo integrates with Resend to send real emails. When you log a message with the Email channel, the customer receives a professionally formatted email instantly. You can also send job reminders automatically.",
       },
       {
         q: "How do invoice numbers work?",
@@ -62,33 +62,8 @@ const FAQS = [
         a: "Yes. You can record multiple payments against a single invoice. The invoice status automatically updates to Partial or Paid based on the total amount collected.",
       },
       {
-        q: "What measurement units does eTailor support?",
-        a: "Currently eTailor stores measurements in centimetres. Imperial (inches) support is on our roadmap and will be added in a future update.",
-      },
-    ],
-  },
-  {
-    category: "Pricing & Subscription",
-    items: [
-      {
-        q: "How are the subscription plans structured?",
-        a: "Each job moves through a workflow: Pending → In Progress → Ready for Fitting → Completed → Delivered. You can view this as a Kanban board or a list. You can update the status with one click from either view.",
-      },
-      {
-        q: "Can I send real emails to customers?",
-        a: "Yes. eTailor integrates with Resend to send real emails. When you log a message with the Email channel, the customer receives a professionally formatted email instantly. You can also send job reminders automatically.",
-      },
-      {
-        q: "How do invoice numbers work?",
-        a: "Invoice numbers are automatically generated in sequential order (INV-0001, INV-0002, etc.) so there are no duplicates and no manual entry required.",
-      },
-      {
-        q: "Can I record partial payments?",
-        a: "Yes. You can record multiple payments against a single invoice. The invoice status automatically updates to Partial or Paid based on the total amount collected.",
-      },
-      {
-        q: "What measurement units does eTailor support?",
-        a: "Currently eTailor stores measurements in centimetres. Imperial (inches) support is on our roadmap and will be added in a future update.",
+        q: "What measurement units does eTailo support?",
+        a: "Currently eTailo stores measurements in centimetres. Imperial (inches) support is on our roadmap and will be added in a future update.",
       },
     ],
   },
@@ -113,7 +88,7 @@ const FAQS = [
     category: "Billing & Plans",
     items: [
       {
-        q: "Is eTailor really free to start?",
+        q: "Is eTailo really free to start?",
         a: "Yes. The Starter plan is completely free with no credit card required. It includes up to 50 customers, unlimited jobs, and basic invoicing.",
       },
       {
@@ -188,7 +163,7 @@ export default function FaqPage() {
       <section className="mx-auto max-w-3xl px-5 pt-16 pb-10 text-center">
         <p className="text-xs font-semibold uppercase tracking-widest text-brand mb-3">FAQ</p>
         <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight mb-4">Frequently asked questions</h1>
-        <p className="text-secondary text-lg">Everything you need to know about eTailor. Can't find the answer? <Link href="/contact" className="text-brand hover:underline">Contact us.</Link></p>
+        <p className="text-secondary text-lg">Everything you need to know about eTailo. Can't find the answer? <Link href="/contact" className="text-brand hover:underline">Contact us.</Link></p>
       </section>
 
       <div className="mx-auto max-w-6xl px-5 pb-16">
