@@ -1,16 +1,23 @@
+import { useState } from "react";
+import Link from "next/link";
+import { MarketingNav } from "@/components/marketing/nav";
+import { MarketingFooter } from "@/components/marketing/footer";
+
 export default function TermsPage() {
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+
   const sections = [
     {
       title: "Introduction",
       content: [
-        "These Terms of Use govern your access to and use of the e-Tailor website and platform.",
+        "These Terms of Use govern your access to and use of the e-Tailo website and platform.",
         "By using the service, you agree to these Terms and confirm that you are authorized to use the platform on behalf of yourself or your business.",
       ],
     },
     {
       title: "Service description",
       content: [
-        "e-Tailor is a tailoring management platform designed for tailoring businesses, boutiques, stitching shops, and similar operations.",
+        "e-Tailo is a tailoring management platform designed for tailoring businesses, boutiques, stitching shops, and similar operations.",
         "The platform helps users manage customers, measurements, orders, payments and invoices, catalog photos, workers or tailors, reports, and business analytics.",
       ],
     },
@@ -42,7 +49,7 @@ export default function TermsPage() {
       title: "Payments and subscriptions",
       content: [
         "If the platform offers paid plans, you agree to pay the applicable subscription and usage charges shown on the website.",
-        "This may include charges for additional clients beyond the free allowance, extra photos, or any other premium features described on the pricing page.",
+        "This may include charges for additional clients beyond any free allowance, extra photos, or other premium features described on the pricing page.",
         "Failure to pay may result in suspension or restriction of access to the service.",
       ],
     },
@@ -56,7 +63,7 @@ export default function TermsPage() {
     {
       title: "Intellectual property",
       content: [
-        "The website, platform, branding, layout, software, and original content belong to e-Tailor or its licensors.",
+        "The website, platform, branding, layout, software, and original content belong to e-Tailo or its licensors.",
         "They are protected by applicable intellectual property laws.",
         "You may not copy, modify, distribute, or reverse engineer the service except where permitted by law or with written permission.",
       ],
@@ -71,7 +78,7 @@ export default function TermsPage() {
     {
       title: "Disclaimer and liability",
       content: [
-        "The service is provided on an \"as is\" and \"as available\" basis to the fullest extent permitted by law.",
+        'The service is provided on an "as is" and "as available" basis to the fullest extent permitted by law.',
         "We are not liable for indirect, incidental, or consequential damages, loss of data, lost profits, or service interruption, except where liability cannot legally be limited.",
       ],
     },
@@ -91,27 +98,119 @@ export default function TermsPage() {
     {
       title: "Contact us",
       content: [
-        "If you have questions about these Terms of Use, please contact e-Tailor using the support details listed on the website.",
+        "If you have questions about these Terms of Use, please contact e-Tailo using the support details listed on the website.",
         "You may also include your legal company name, address, and support email in this section.",
       ],
     },
   ];
 
-  return (
-    <div className="space-y-5">
-      <h1 className="text-2xl font-semibold">Terms of Use</h1>
-      <p className="text-sm text-secondary">Last updated: May 31, 2026</p>
+  const outline = sections.map((section, index) => ({
+    title: section.title,
+    href: `#${section.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${index}`,
+  }));
 
-      <div className="prose max-w-none space-y-6">
-        {sections.map((section) => (
-          <div key={section.title}>
-            <h2>{section.title}</h2>
-            {section.content.map((paragraph, index) => (
-              <p key={index}>{paragraph}</p>
-            ))}
-          </div>
-        ))}
-      </div>
+  return (
+    <div className="flex min-h-screen flex-col bg-background">
+      {/* Global marketing nav */}
+      <MarketingNav />
+
+      <main className="flex-1">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:flex-row md:py-16">
+          {/* Left column: Page title, meta, and outline */}
+          <aside className="md:w-64 md:flex-none">
+            <div className="mb-6">
+              <p className="text-xs font-medium uppercase tracking-wide text-primary/70">
+                Legal
+              </p>
+              <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+                Terms of Use
+              </h1>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Last updated: May 31, 2026
+              </p>
+            </div>
+
+            {/* Outline / quick navigation */}
+            <div className="hidden rounded-lg border bg-card/50 p-3 text-sm shadow-sm md:block">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                On this page
+              </p>
+              <nav className="space-y-1">
+                {outline.map((item) => (
+                  <button
+                    key={item.href}
+                    type="button"
+                    onClick={() => {
+                      setActiveSection(item.href);
+                      const el = document.querySelector(item.href);
+                      if (el) {
+                        el.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
+                    }}
+                    className={`block w-full rounded px-2 py-1 text-left text-xs transition ${
+                      activeSection === item.href
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground"
+                    }`}
+                  >
+                    {item.title}
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            {/* Link to other help/legal content */}
+            <div className="mt-4 hidden text-xs text-muted-foreground md:block">
+              <span>Need help with the product? </span>
+              <Link
+                href="/faq"
+                className="font-medium text-primary underline-offset-2 hover:underline"
+              >
+                Visit FAQs
+              </Link>
+            </div>
+          </aside>
+
+          {/* Right column: Content */}
+          <section className="flex-1 rounded-xl border bg-card/70 p-5 shadow-sm md:p-8">
+            <div className="prose prose-sm max-w-none dark:prose-invert">
+              {sections.map((section, sectionIndex) => {
+                const id = `${section.title
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "-")}-${sectionIndex}`;
+
+                return (
+                  <article key={section.title} id={id} className="scroll-m-24">
+                    <h2 className="mb-2 text-base font-semibold tracking-tight">
+                      {section.title}
+                    </h2>
+                    {section.content.map((paragraph, index) => (
+                      <p
+                        key={index}
+                        className="mb-2 text-xs leading-relaxed text-muted-foreground"
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                    {sectionIndex !== sections.length - 1 && (
+                      <hr className="my-4 border-dashed border-border" />
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+
+            {/* Note inside card */}
+            <div className="mt-6 rounded-md bg-muted/60 px-3 py-2 text-[11px] text-muted-foreground">
+              These Terms of Use may be updated as our services or legal requirements
+              change. Please review them periodically.
+            </div>
+          </section>
+        </div>
+      </main>
+
+      {/* Global marketing footer */}
+      <MarketingFooter />
     </div>
   );
 }
