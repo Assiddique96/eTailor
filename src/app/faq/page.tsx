@@ -14,12 +14,9 @@ const FAQS = [
       },
       {
         q: "Who is eTailo for?",
-        a: "Local tailors and individual seamstresses",
-        a: "Boutique tailoring shops",
-        a: "Multi-tailor workshops",
-        a: "Stichting centers with multiple workers",
-        a: "Anyone looking to digitize their tailoring business.",
+        a: "eTailo is for: Local tailors and individual seamstresses, Boutique tailoring shops, Multi-tailor workshops, Stitching centers with multiple workers, and anyone looking to digitize their tailoring business.",
       },
+    ],
   },
   {
     category: "Getting Started",
