@@ -1,9 +1,12 @@
+"use client";
+
 import { useState } from "react";
 import Link from "next/link";
 import { MarketingNav } from "@/components/marketing/nav";
 import { MarketingFooter } from "@/components/marketing/footer";
 
 export default function TermsPage() {
+  // If this file is .tsx in the app router, avoiding the generic keeps it simple
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
   const sections = [
@@ -111,12 +114,11 @@ export default function TermsPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Global marketing nav */}
       <MarketingNav />
 
       <main className="flex-1">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:flex-row md:py-16">
-          {/* Left column: Page title, meta, and outline */}
+          {/* Left column: title + outline */}
           <aside className="md:w-64 md:flex-none">
             <div className="mb-6">
               <p className="text-xs font-medium uppercase tracking-wide text-primary/70">
@@ -130,7 +132,6 @@ export default function TermsPage() {
               </p>
             </div>
 
-            {/* Outline / quick navigation */}
             <div className="hidden rounded-lg border bg-card/50 p-3 text-sm shadow-sm md:block">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 On this page
@@ -159,7 +160,6 @@ export default function TermsPage() {
               </nav>
             </div>
 
-            {/* Link to other help/legal content */}
             <div className="mt-4 hidden text-xs text-muted-foreground md:block">
               <span>Need help with the product? </span>
               <Link
@@ -171,7 +171,7 @@ export default function TermsPage() {
             </div>
           </aside>
 
-          {/* Right column: Content */}
+          {/* Right column: content */}
           <section className="flex-1 rounded-xl border bg-card/70 p-5 shadow-sm md:p-8">
             <div className="prose prose-sm max-w-none dark:prose-invert">
               {sections.map((section, sectionIndex) => {
@@ -180,7 +180,7 @@ export default function TermsPage() {
                   .replace(/[^a-z0-9]+/g, "-")}-${sectionIndex}`;
 
                 return (
-                  <article key={section.title} id={id} className="scroll-m-24">
+                  <article key={id} id={id} className="scroll-m-24">
                     <h2 className="mb-2 text-base font-semibold tracking-tight">
                       {section.title}
                     </h2>
@@ -200,7 +200,6 @@ export default function TermsPage() {
               })}
             </div>
 
-            {/* Note inside card */}
             <div className="mt-6 rounded-md bg-muted/60 px-3 py-2 text-[11px] text-muted-foreground">
               These Terms of Use may be updated as our services or legal requirements
               change. Please review them periodically.
@@ -209,7 +208,6 @@ export default function TermsPage() {
         </div>
       </main>
 
-      {/* Global marketing footer */}
       <MarketingFooter />
     </div>
   );
