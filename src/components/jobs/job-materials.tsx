@@ -139,7 +139,7 @@ export function JobMaterials({ jobId }: { jobId: string }) {
                 </p>
               </div>
               {m.totalCost && (
-                <span className="text-sm font-medium flex-shrink-0">
+                <span className="text-sm font-medium shrink-0">
                   {formatCurrency(m.totalCost)}
                 </span>
               )}
@@ -150,3 +150,6 @@ export function JobMaterials({ jobId }: { jobId: string }) {
     </div>
   );
 }
+
+
+

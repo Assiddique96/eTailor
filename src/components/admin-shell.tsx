@@ -70,7 +70,7 @@ export function AdminShell({ user, children }: AdminShellProps) {
             onClick={() => setMobileOpen(false)}
             className={`sidebar-link ${isActive(item.href) ? "active" : ""}`}
           >
-            <span dangerouslySetInnerHTML={{ __html: item.icon }} className="flex-shrink-0" />
+            <span dangerouslySetInnerHTML={{ __html: item.icon }} className="shrink-0" />
             {item.label}
           </Link>
         ))}
@@ -88,7 +88,7 @@ export function AdminShell({ user, children }: AdminShellProps) {
       <hr style={{ borderColor: "#292524", margin: "0 16px" }} />
       <div className="p-3">
         <div className="flex items-center gap-2.5 rounded-lg p-2">
-          <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0" style={{ background: "#450a0a", color: "#fca5a5" }}>
+          <div className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0" style={{ background: "#450a0a", color: "#fca5a5" }}>
             {initials(user.fullName)}
           </div>
           <div className="min-w-0 flex-1">
@@ -104,7 +104,7 @@ export function AdminShell({ user, children }: AdminShellProps) {
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg-base)" }}>
       {/* Red-accented sidebar to visually distinguish admin from portal */}
-      <aside className="hidden md:flex flex-col w-56 flex-shrink-0" style={{ background: "var(--bg-sidebar)" }}>
+      <aside className="hidden md:flex flex-col w-56 shrink-0" style={{ background: "var(--bg-sidebar)" }}>
         <SidebarContent />
       </aside>
 
@@ -143,3 +143,6 @@ export function AdminShell({ user, children }: AdminShellProps) {
     </div>
   );
 }
+
+
+

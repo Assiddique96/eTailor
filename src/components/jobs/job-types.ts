@@ -1,3 +1,11 @@
+export type JobStyleProfile = {
+  selectionMode: "CATALOG" | "UPLOAD" | "IMPRESS_ME" | null;
+  catalogItemId?: string | null;
+  uploadedImageUrl?: string | null;
+  notes?: string | null;
+  catalogItem?: { id: string; name: string; imageUrl: string; category: { name: string } } | null;
+};
+
 export type Job = {
   id: string;
   title: string;

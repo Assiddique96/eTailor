@@ -172,7 +172,7 @@ export default function MessagesPage() {
                     <p className="text-sm text-secondary mt-0.5">{m.message}</p>
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
+                <div className="text-right shrink-0">
                   <span
                     className="badge text-xs"
                     style={{ background: "var(--bg-base)", color: "var(--text-muted)" }}
@@ -191,3 +191,6 @@ export default function MessagesPage() {
     </div>
   );
 }
+
+
+

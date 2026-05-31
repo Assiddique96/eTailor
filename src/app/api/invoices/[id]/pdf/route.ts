@@ -119,53 +119,48 @@ export async function GET(
     y = height - 110;
 
     // ── Status badge ─────────────────────────────────────
-// ── Status badge ─────────────────────────────────────
-const statusLabel = invoice.paymentStatus || "PENDING"; // Fallback
-const sColor = statusColor(statusLabel);
-const badgeW = 70; 
-const badgeH = 20;
-const radius = 4;
-
-// Ensure these are absolute numbers
-const bx = Number(R - badgeW);
-const by = Number(y - 2);
-
-// Create the path string on a single line or carefully joined 
-// to prevent unexpected whitespace/undefined issues
-const badgePath = `M ${bx + radius} ${by} L ${bx + badgeW - radius} ${by} Q ${bx + badgeW} ${by} ${bx + badgeW} ${by + radius} L ${bx + badgeW} ${by + badgeH - radius} Q ${bx + badgeW} ${by + badgeH} ${bx + badgeW - radius} ${by + badgeH} L ${bx + radius} ${by + badgeH} Q ${bx} ${by + badgeH} ${bx} ${by + badgeH - radius} L ${bx} ${by + radius} Q ${bx} ${by} ${bx + radius} ${by} Z`;
-
-// Use the path
-page.drawSvgPath(badgePath, { color: sColor });
-    
-    const sLabelW = bold.widthOfTextAtSize(statusLabel, 9);
+    const statusLabel = invoice.paymentStatus || "PENDING";
+    const sColor = statusColor(statusLabel);
+    const badgeW = 70;
+    const badgeH = 20;
+    page.drawRectangle({ 
+      x: R - badgeW - 5, 
+      y: y - badgeH - 2, 
+      width: badgeW, 
+      height: badgeH, 
+      color: sColor,
+      borderWidth: 0
+    });
+    const sLabelW = bold.widthOfTextAtSize(statusLabel, 10);
     page.drawText(statusLabel, {
-      x: R - badgeW / 2 - sLabelW / 2, 
-      y: y + 5, 
-      size: 9, 
-      font: bold, 
+      x: R - badgeW - 5 + (badgeW - sLabelW) / 2,
+      y: y - badgeH + 3,
+      size: 10,
+      font: bold,
       color: WHITE,
     });
 
+    y -= 30;
+
     // ── Bill To / Invoice Details ────────────────────────
-    // Left: Bill To
     page.drawText("BILL TO", { x: L, y, size: 8, font: bold, color: MUTED });
-    y -= 14;
+    y -= 12;
     page.drawText(`${invoice.customer.firstName} ${invoice.customer.lastName}`, {
-      x: L, y, size: 12, font: bold, color: DARK,
+      x: L, y, size: 11, font: bold, color: DARK,
     });
     y -= 14;
     if (invoice.customer.phone) {
-      page.drawText(invoice.customer.phone, { x: L, y, size: 10, font, color: MUTED });
-      y -= 12;
+      page.drawText(invoice.customer.phone, { x: L, y, size: 9, font, color: MUTED });
+      y -= 11;
     }
     if (invoice.customer.email) {
-      page.drawText(invoice.customer.email, { x: L, y, size: 10, font, color: MUTED });
-      y -= 12;
+      page.drawText(invoice.customer.email, { x: L, y, size: 9, font, color: MUTED });
+      y -= 11;
     }
 
     // Right: Invoice meta
     const metaX = 370;
-    let metaY = height - 110;
+    let metaY = height - 140;
     const metaRows = [
       ["Invoice No.",  invoice.invoiceNumber],
       ["Issue Date",   invoice.issuedAt.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })],
@@ -173,29 +168,29 @@ page.drawSvgPath(badgePath, { color: sColor });
       ...(invoice.job ? [["Job Ref.", invoice.job.title]] : []),
     ];
     for (const [label, value] of metaRows) {
-      page.drawText(label, { x: metaX, y: metaY, size: 9, font, color: MUTED });
-      page.drawText(value, { x: metaX + 80, y: metaY, size: 9, font: bold, color: DARK });
+      page.drawText(label, { x: metaX, y: metaY, size: 8, font, color: MUTED });
+      page.drawText(value, { x: metaX + 90, y: metaY, size: 9, font: bold, color: DARK });
       metaY -= 14;
     }
 
     // ── Divider ──────────────────────────────────────────
-    y -= 20;
-    page.drawLine({ start: { x: L, y }, end: { x: R, y }, thickness: 0.5, color: LIGHT });
+    y -= 24;
+    page.drawLine({ start: { x: L, y }, end: { x: R, y }, thickness: 1, color: LIGHT });
     y -= 20;
 
     // ── Line items table ─────────────────────────────────
     const col1 = L;
-    const col2 = 380;
-    const col3 = 460;
-    const col4 = R - 10;
+    const col2 = 370;
+    const col3 = 470;
+    const col4 = R - 20;
 
     // Table header
-    page.drawRectangle({ x: L - 5, y: y - 4, width: R - L + 10, height: 20, color: rgb(0.97, 0.96, 0.95) });
-    page.drawText("Description",  { x: col1, y, size: 9, font: bold, color: MUTED });
-    page.drawText("Qty",          { x: col2, y, size: 9, font: bold, color: MUTED });
-    page.drawText("Unit (NGN)",     { x: col3, y, size: 9, font: bold, color: MUTED });
-    page.drawText("Amount",       { x: col4 - bold.widthOfTextAtSize("Amount", 9), y, size: 9, font: bold, color: MUTED });
-    y -= 22;
+    page.drawRectangle({ x: L - 5, y: y - 2, width: R - L + 10, height: 18, color: rgb(0.97, 0.96, 0.95) });
+    page.drawText("Description",  { x: col1, y: y + 4, size: 8, font: bold, color: MUTED });
+    page.drawText("Qty",          { x: col2, y: y + 4, size: 8, font: bold, color: MUTED });
+    page.drawText("Unit Price",   { x: col3, y: y + 4, size: 8, font: bold, color: MUTED });
+    page.drawText("Amount",       { x: col4 - bold.widthOfTextAtSize("Amount", 8), y: y + 4, size: 8, font: bold, color: MUTED });
+    y -= 20;
 
     // Render actual line items if present, else fall back to subtotal row
     const invoiceLines = (invoice as typeof invoice & { lines?: Array<{ description: string; quantity: number; unitPrice: number; amount: number }> }).lines ?? [];
@@ -203,45 +198,43 @@ page.drawSvgPath(badgePath, { color: sColor });
       for (const line of invoiceLines) {
         const amtStr  = money(Number(line.amount));
         const unitStr = money(Number(line.unitPrice));
-        const desc = line.description.length > 44 ? line.description.slice(0, 41) + "…" : line.description;
-        page.drawText(desc,          { x: col1, y, size: 10, font, color: DARK });
-        page.drawText(String(Number(line.quantity)), { x: col2, y, size: 10, font, color: MUTED });
-        page.drawText(unitStr,       { x: col3, y, size: 10, font, color: MUTED });
-        page.drawText(amtStr,        { x: col4 - font.widthOfTextAtSize(amtStr, 10), y, size: 10, font, color: DARK });
+        const desc = line.description.length > 40 ? line.description.slice(0, 37) + "…" : line.description;
+        page.drawText(desc,          { x: col1, y, size: 9, font, color: DARK });
+        page.drawText(String(Number(line.quantity)), { x: col2, y, size: 9, font, color: MUTED });
+        page.drawText(unitStr,       { x: col3, y, size: 9, font, color: MUTED });
+        page.drawText(amtStr,        { x: col4 - font.widthOfTextAtSize(amtStr, 9), y, size: 9, font, color: DARK });
         y -= 16;
-        page.drawLine({ start: { x: L, y: y + 2 }, end: { x: R, y: y + 2 }, thickness: 0.3, color: LIGHT });
       }
-      y -= 4;
+      y -= 8;
     } else {
       const subtotalStr = money(Number(invoice.subtotal));
-      page.drawText("Services / Garment work", { x: col1, y, size: 10, font, color: DARK });
-      page.drawText(subtotalStr, { x: col4 - font.widthOfTextAtSize(subtotalStr, 10), y, size: 10, font, color: DARK });
+      page.drawText("Services / Garment work", { x: col1, y, size: 9, font, color: DARK });
+      page.drawText(subtotalStr, { x: col4 - font.widthOfTextAtSize(subtotalStr, 9), y, size: 9, font, color: DARK });
       y -= 16;
+      y -= 8;
     }
 
     if (Number(invoice.discount) > 0) {
-      page.drawText("Discount", { x: col1, y, size: 10, font, color: DARK });
-      page.drawText("Deduction", { x: col2, y, size: 10, font, color: DARK });
+      page.drawText("Discount", { x: col1, y, size: 9, font, color: DARK });
       const discStr = `-${money(Number(invoice.discount))}`;
-      page.drawText(discStr, { x: col4 - font.widthOfTextAtSize(discStr, 10), y, size: 10, font, color: SUCCESS });
-      y -= 16;
+      page.drawText(discStr, { x: col4 - font.widthOfTextAtSize(discStr, 9), y, size: 9, font, color: SUCCESS });
+      y -= 14;
     }
 
     if (Number(invoice.tax) > 0) {
-      page.drawText("Tax", { x: col1, y, size: 10, font, color: DARK });
-      page.drawText("VAT / Tax", { x: col2, y, size: 10, font, color: DARK });
+      page.drawText("Tax", { x: col1, y, size: 9, font, color: DARK });
       const taxStr = money(Number(invoice.tax));
-      page.drawText(taxStr, { x: col4 - font.widthOfTextAtSize(taxStr, 10), y, size: 10, font, color: DARK });
-      y -= 16;
+      page.drawText(taxStr, { x: col4 - font.widthOfTextAtSize(taxStr, 9), y, size: 9, font, color: DARK });
+      y -= 14;
     }
 
     // Total band
-    y -= 6;
-    page.drawRectangle({ x: L - 5, y: y - 8, width: R - L + 10, height: 28, color: INDIGO });
-    page.drawText("TOTAL", { x: col1, y: y + 5, size: 11, font: bold, color: WHITE });
+    y -= 8;
+    page.drawRectangle({ x: L - 5, y: y - 2, width: R - L + 10, height: 26, color: INDIGO });
+    page.drawText("TOTAL", { x: col1, y: y + 8, size: 10, font: bold, color: WHITE });
     const totalStr = money(Number(invoice.total));
-    page.drawText(totalStr, { x: col4 - bold.widthOfTextAtSize(totalStr, 13), y: y + 4, size: 13, font: bold, color: WHITE });
-    y -= 30;
+    page.drawText(totalStr, { x: col4 - bold.widthOfTextAtSize(totalStr, 12), y: y + 7, size: 12, font: bold, color: WHITE });
+    y -= 28;
 
     // ── Payment summary ──────────────────────────────────
     y -= 16;
@@ -249,7 +242,7 @@ page.drawSvgPath(badgePath, { color: sColor });
     const balance   = Number(invoice.total) - paidTotal;
 
     page.drawText("PAYMENT SUMMARY", { x: L, y, size: 8, font: bold, color: MUTED });
-    y -= 14;
+    y -= 12;
 
     const summaryRows: [string, string, typeof DARK][] = [
       ["Total invoiced", money(Number(invoice.total)), DARK],
@@ -257,69 +250,67 @@ page.drawSvgPath(badgePath, { color: sColor });
       ["Balance due",    money(balance),               balance > 0 ? DANGER : SUCCESS],
     ];
     for (const [label, value, color] of summaryRows) {
-      page.drawText(label, { x: L,              y, size: 10, font,  color: MUTED });
-      page.drawText(value, { x: L + 120,        y, size: 10, font: bold, color });
-      y -= 14;
+      page.drawText(label, { x: L,              y, size: 9, font,  color: MUTED });
+      page.drawText(value, { x: L + 130,        y, size: 9, font: bold, color });
+      y -= 13;
     }
 
     // ── Payment receipts ─────────────────────────────────
     if (invoice.payments.length > 0) {
-      y -= 16;
-      page.drawLine({ start: { x: L, y }, end: { x: R, y }, thickness: 0.5, color: LIGHT });
-      y -= 16;
-      page.drawText("PAYMENT HISTORY", { x: L, y, size: 8, font: bold, color: MUTED });
+      y -= 12;
+      page.drawLine({ start: { x: L, y }, end: { x: R, y }, thickness: 1, color: LIGHT });
       y -= 14;
+      page.drawText("PAYMENT HISTORY", { x: L, y, size: 8, font: bold, color: MUTED });
+      y -= 12;
 
       // Table header
-      page.drawRectangle({ x: L - 5, y: y - 4, width: R - L + 10, height: 18, color: rgb(0.97, 0.96, 0.95) });
-      page.drawText("Date",      { x: L,       y, size: 8, font: bold, color: MUTED });
-      page.drawText("Method",    { x: L + 100, y, size: 8, font: bold, color: MUTED });
-      page.drawText("Reference", { x: L + 200, y, size: 8, font: bold, color: MUTED });
-      page.drawText("Amount",    { x: R - bold.widthOfTextAtSize("Amount", 8) - 5, y, size: 8, font: bold, color: MUTED });
-      y -= 18;
+      page.drawRectangle({ x: L - 5, y: y - 2, width: R - L + 10, height: 16, color: rgb(0.97, 0.96, 0.95) });
+      page.drawText("Date",      { x: L,       y: y + 4, size: 7, font: bold, color: MUTED });
+      page.drawText("Method",    { x: L + 100, y: y + 4, size: 7, font: bold, color: MUTED });
+      page.drawText("Reference", { x: L + 200, y: y + 4, size: 7, font: bold, color: MUTED });
+      page.drawText("Amount",    { x: R - bold.widthOfTextAtSize("Amount", 7) - 5, y: y + 4, size: 7, font: bold, color: MUTED });
+      y -= 16;
 
       for (const payment of invoice.payments.slice(0, 15)) {
         const amtStr = money(Number(payment.amount));
-        page.drawText(payment.paidAt.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }), { x: L,       y, size: 9, font, color: DARK });
-        page.drawText(payment.method,                { x: L + 100, y, size: 9, font, color: DARK });
-        page.drawText(payment.reference ?? "—",      { x: L + 200, y, size: 9, font, color: MUTED });
-        page.drawText(amtStr, { x: R - font.widthOfTextAtSize(amtStr, 9) - 5, y, size: 9, font, color: SUCCESS });
-        y -= 14;
-        // Light row separator
-        page.drawLine({ start: { x: L, y: y + 2 }, end: { x: R, y: y + 2 }, thickness: 0.3, color: LIGHT });
+        page.drawText(payment.paidAt.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }), { x: L,       y, size: 8, font, color: DARK });
+        page.drawText(payment.method,                { x: L + 100, y, size: 8, font, color: DARK });
+        page.drawText(payment.reference ?? "—",      { x: L + 200, y, size: 8, font, color: MUTED });
+        page.drawText(amtStr, { x: R - font.widthOfTextAtSize(amtStr, 8) - 5, y, size: 8, font, color: SUCCESS });
+        y -= 12;
       }
     }
 
     // ── Bank details & payment terms ────────────────────
     const shopMeta2 = invoice.shop as typeof invoice.shop & { bankDetails?: string; paymentTerms?: string };
     if (shopMeta2.bankDetails || shopMeta2.paymentTerms) {
-      y -= 16;
-      page.drawLine({ start: { x: L, y }, end: { x: R, y }, thickness: 0.5, color: LIGHT });
-      y -= 14;
+      y -= 12;
+      page.drawLine({ start: { x: L, y }, end: { x: R, y }, thickness: 1, color: LIGHT });
+      y -= 12;
       page.drawText("PAYMENT INSTRUCTIONS", { x: L, y, size: 8, font: bold, color: MUTED });
-      y -= 14;
+      y -= 11;
       if (shopMeta2.paymentTerms) {
-        page.drawText(shopMeta2.paymentTerms, { x: L, y, size: 10, font: bold, color: DARK });
-        y -= 14;
+        page.drawText(shopMeta2.paymentTerms, { x: L, y, size: 9, font: bold, color: DARK });
+        y -= 12;
       }
       if (shopMeta2.bankDetails) {
         const bankLines = shopMeta2.bankDetails.split("\n");
         for (const bline of bankLines.slice(0, 4)) {
-          page.drawText(bline.trim(), { x: L, y, size: 9, font, color: MUTED });
-          y -= 12;
+          page.drawText(bline.trim(), { x: L, y, size: 8, font, color: MUTED });
+          y -= 11;
         }
       }
     }
 
     // ── Footer ───────────────────────────────────────────
-    const footerY = 36;
-    page.drawLine({ start: { x: L, y: footerY + 18 }, end: { x: R, y: footerY + 18 }, thickness: 0.5, color: LIGHT });
+    const footerY = 30;
+    page.drawLine({ start: { x: L, y: footerY + 16 }, end: { x: R, y: footerY + 16 }, thickness: 0.5, color: LIGHT });
     page.drawText(`Thank you for your business — ${invoice.shop.name}`, {
-      x: L, y: footerY + 6, size: 9, font, color: MUTED,
+      x: L, y: footerY + 3, size: 8, font, color: MUTED,
     });
     page.drawText(`Generated by eTailor · ${new Date().toLocaleDateString()}`, {
-      x: R - font.widthOfTextAtSize(`Generated by eTailor · ${new Date().toLocaleDateString()}`, 8),
-      y: footerY + 6, size: 8, font, color: LIGHT,
+      x: R - font.widthOfTextAtSize(`Generated by eTailor · ${new Date().toLocaleDateString()}`, 7),
+      y: footerY + 3, size: 7, font, color: LIGHT,
     });
 
     const bytes = await pdf.save();

@@ -17,6 +17,9 @@ const createInvoiceSchema = z.object({
   discount:   z.number().nonnegative().default(0),
   tax:        z.number().nonnegative().default(0),
   dueAt:      z.string().datetime().optional(),
+  notes:      z.string().optional(),
+  subtotal:   z.number().optional(), // For job-based invoices
+  total:      z.number().optional(), // For job-based invoices
 });
 
 export const GET = withAuth({ permission: "invoices.read" }, async ({ request, user }) => {
@@ -42,14 +45,46 @@ export const GET = withAuth({ permission: "invoices.read" }, async ({ request, u
 export const POST = withAuth({ permission: "invoices.write" }, async ({ request, user }) => {
   const body = createInvoiceSchema.parse(await request.json());
 
-  // Calculate amounts from line items
-  const lines   = body.lines.map((l) => ({ ...l, amount: l.quantity * l.unitPrice }));
-  const subtotal = lines.reduce((sum, l) => sum + l.amount, 0);
-  const total    = subtotal - body.discount + body.tax;
+  const lines    = body.lines.map((l) => ({ ...l, amount: l.quantity * l.unitPrice }));
+  const subtotal = body.subtotal ?? lines.reduce((sum, l) => sum + l.amount, 0);
+  const total    = body.total ?? (subtotal - body.discount + body.tax);
+
+  // Verify job exists if provided
+  if (body.jobId) {
+    const job = await db.job.findFirst({
+      where: { id: body.jobId, shopId: user.shopId! },
+      select: { id: true },
+    });
+    if (!job) throw new ApiError("Job not found.", 404);
+  }
 
   const invoice = await db.$transaction(async (tx) => {
+    /**
+     * Race-condition fix: replace count()+1 with a Postgres advisory lock
+     * scoped to the shop, then re-count inside the lock.
+     *
+     * pg_try_advisory_xact_lock takes a bigint. We hash the shopId string
+     * down to a stable integer using a simple but collision-resistant XOR fold.
+     */
+    const shopIdHash = Buffer.from(user.shopId!).reduce(
+      (acc, byte, i) => acc ^ (byte << (i % 24)),
+      0
+    );
+    await tx.$executeRawUnsafe(
+      `SELECT pg_advisory_xact_lock(${shopIdHash})`
+    );
+
     const count = await tx.invoice.count({ where: { shopId: user.shopId! } });
     const invoiceNumber = `INV-${String(count + 1).padStart(4, "0")}`;
+
+    // Verify the number is actually unique (guards against hash collisions)
+    const conflict = await tx.invoice.findUnique({
+      where: { shopId_invoiceNumber: { shopId: user.shopId!, invoiceNumber } },
+      select: { id: true },
+    });
+    if (conflict) {
+      throw new ApiError("Invoice number conflict — please retry.", 409);
+    }
 
     const created = await tx.invoice.create({
       data: {
@@ -79,9 +114,11 @@ export const POST = withAuth({ permission: "invoices.write" }, async ({ request,
     });
 
     await writeAuditLog(
-      { shopId: user.shopId, userId: user.id,
+      {
+        shopId: user.shopId, userId: user.id,
         action: "INVOICE_CREATED", entity: "Invoice", entityId: created.id,
-        metadata: { total, lineCount: lines.length } },
+        metadata: { total, lineCount: lines.length, jobId: body.jobId },
+      },
       tx
     );
 

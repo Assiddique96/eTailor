@@ -8,17 +8,24 @@ type Notification = {
   isRead: boolean; createdAt: string; entityId?: string; entityType?: string;
 };
 
+/**
+ * SSE + polling hybrid.
+ *
+ * - SSE push delivers immediate updates when the server broadcasts.
+ * - refreshInterval: 30_000 is the safety net: if the SSE connection is
+ *   lost, dropped by a proxy, or the shop is multi-instance (see notifications.ts),
+ *   the UI still catches up within 30 seconds via normal SWR polling.
+ */
 export function useNotifications() {
   const { mutate } = useSWRConfig();
   const { data, isLoading } = useSWR<{
     notifications: Notification[];
     unreadCount: number;
-  }>("/api/notifications", fetcher, { refreshInterval: 0 });
+  }>("/api/notifications", fetcher, { refreshInterval: 30_000 });
 
   const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    // Connect to SSE stream — push new notifications without polling
     const es = new EventSource("/api/notifications/stream");
     esRef.current = es;
 
@@ -26,19 +33,16 @@ export function useNotifications() {
       try {
         const payload = JSON.parse(e.data);
         if (payload.type === "notification") {
-          // Re-validate the notifications SWR key so the bell updates
           mutate("/api/notifications");
         }
       } catch { /* ignore malformed events */ }
     };
 
     es.onerror = () => {
-      // Browser will auto-reconnect EventSource on error
+      // Browser auto-reconnects EventSource after 3 s; polling covers the gap.
     };
 
-    return () => {
-      es.close();
-    };
+    return () => { es.close(); };
   }, [mutate]);
 
   async function markRead(id?: string) {

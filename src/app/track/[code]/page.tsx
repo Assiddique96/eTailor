@@ -66,7 +66,7 @@ export default function TrackingDetailPage({ params }: { params: Promise<{ code:
             <div className="card p-6 space-y-3">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="flex gap-3">
-                  <div className="skeleton h-8 w-8 rounded-full flex-shrink-0" />
+                  <div className="skeleton h-8 w-8 rounded-full shrink-0" />
                   <div className="flex-1 space-y-1.5">
                     <div className="skeleton h-4 w-1/3 rounded" />
                     <div className="skeleton h-3 w-2/3 rounded" />
@@ -105,10 +105,10 @@ export default function TrackingDetailPage({ params }: { params: Promise<{ code:
                   {job.description && <p className="text-sm text-secondary mt-1">{job.description}</p>}
                 </div>
                 {isCancelled ? (
-                  <span className="badge badge-cancelled flex-shrink-0">Cancelled</span>
+                  <span className="badge badge-cancelled shrink-0">Cancelled</span>
                 ) : (
                   <span
-                    className="badge flex-shrink-0"
+                    className="badge shrink-0"
                     style={{ background: "var(--brand-light)", color: "var(--brand)" }}
                   >
                     {job.status.replace(/_/g, " ")}
@@ -150,7 +150,7 @@ export default function TrackingDetailPage({ params }: { params: Promise<{ code:
                         {/* Step indicator + connector */}
                         <div className="flex flex-col items-center">
                           <div
-                            className="h-9 w-9 rounded-full flex items-center justify-center text-base flex-shrink-0 transition-all"
+                            className="h-9 w-9 rounded-full flex items-center justify-center text-base shrink-0 transition-all"
                             style={{
                               background: isCompleted
                                 ? "var(--success-light)"
@@ -255,7 +255,7 @@ export default function TrackingDetailPage({ params }: { params: Promise<{ code:
                   className="field text-sm font-mono flex-1"
                 />
                 <button
-                  className="btn btn-ghost btn-sm flex-shrink-0"
+                  className="btn btn-ghost btn-sm shrink-0"
                   onClick={() => {
                     navigator.clipboard.writeText(window.location.href);
                   }}
@@ -274,3 +274,6 @@ export default function TrackingDetailPage({ params }: { params: Promise<{ code:
     </div>
   );
 }
+
+
+

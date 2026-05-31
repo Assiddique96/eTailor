@@ -283,7 +283,7 @@ export default function HomePage() {
               </div>
               <p className="text-sm text-secondary leading-relaxed flex-1">"{t.quote}"</p>
               <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                <div className="h-9 w-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold shrink-0">
                   {t.avatar}
                 </div>
                 <div>
@@ -329,7 +329,7 @@ export default function HomePage() {
                 <ul className="space-y-2.5 mb-6">
                   {p.features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm">
-                      <svg className="flex-shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2.5">
+                      <svg className="shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2.5">
                         <polyline points="20 6 9 17 4 12"/>
                       </svg>
                       <span className="text-secondary">{f}</span>
@@ -376,3 +376,6 @@ export default function HomePage() {
     </div>
   );
 }
+
+
+

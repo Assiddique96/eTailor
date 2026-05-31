@@ -83,7 +83,7 @@ export default function ContactPage() {
           <aside className="md:col-span-2 space-y-4">
             {CONTACT_INFO.map((c) => (
               <div key={c.label} className="card p-5 flex items-start gap-4">
-                <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--brand-light)", color: "var(--brand)" }}>
+                <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--brand-light)", color: "var(--brand)" }}>
                   <span dangerouslySetInnerHTML={{ __html: c.icon }} />
                 </div>
                 <div>
@@ -193,3 +193,7 @@ export default function ContactPage() {
     </div>
   );
 }
+
+
+
+

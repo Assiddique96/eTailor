@@ -1,27 +1,21 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableSkeleton } from "@/components/ui/skeleton";
-import { StatusBadge } from "@/components/ui/badge";
 import { JobBoard } from "@/components/jobs/job-board";
 import { JobTable } from "@/components/jobs/job-table";
 import { CreateJobModal } from "@/components/jobs/create-job-modal";
-import { JobComments } from "@/components/jobs/job-comments";
-import { JobMaterials } from "@/components/jobs/job-materials";
-import { formatCurrency } from "@/lib/currency";
+import { JobPopup } from "@/components/jobs/job-popup";
 import type { Job, Customer } from "@/components/jobs/job-types";
-
-type DrawerTab = "comments" | "materials";
 
 export default function JobsPage() {
   const { toast } = useToast();
-  const [view, setView]           = useState<"board" | "list">("board");
+  const [view, setView]             = useState<"board" | "list">("board");
   const [showCreate, setShowCreate] = useState(false);
-  const [drawerJob, setDrawerJob] = useState<Job | null>(null);
-  const [drawerTab, setDrawerTab] = useState<DrawerTab>("comments");
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   const { data: jobsData, isLoading: jobsLoading, mutate: mutateJobs } =
     useSWR<{ jobs: Job[] }>("/api/jobs", fetcher);
@@ -31,10 +25,23 @@ export default function JobsPage() {
 
   const jobs      = jobsData?.jobs      ?? [];
   const customers = customersData?.customers ?? [];
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+  // Escape key to close popup
+  useEffect(() => {
+    if (!selectedJob) return;
+    const fn = (e: KeyboardEvent) => { if (e.key === "Escape") setSelectedJob(null); };
+    document.addEventListener("keydown", fn);
+    return () => document.removeEventListener("keydown", fn);
+  }, [selectedJob]);
 
   async function updateStatus(jobId: string, status: string) {
+    // Optimistic update
     await mutateJobs(
-      (prev) => prev ? { ...prev, jobs: prev.jobs.map((j) => j.id === jobId ? { ...j, status } : j) } : prev,
+      (prev) => prev
+        ? { ...prev, jobs: prev.jobs.map((j) => j.id === jobId ? { ...j, status } : j) }
+        : prev,
       false
     );
     const res = await fetch(`/api/jobs/${jobId}`, {
@@ -42,13 +49,32 @@ export default function JobsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    if (!res.ok) { toast("Failed to update status.", "error"); mutateJobs(); }
+    if (!res.ok) {
+      toast("Failed to update status.", "error");
+      mutateJobs(); // revert
+    } else {
+      // Keep popup in sync
+      if (selectedJob?.id === jobId) {
+        setSelectedJob((j) => j ? { ...j, status } : j);
+      }
+    }
   }
 
-  function openDrawer(job: Job, tab: DrawerTab = "comments") {
-    setDrawerJob(job);
-    setDrawerTab(tab);
-  }
+  const normalized = (s: string) => s.trim().toLowerCase();
+
+  const filteredJobs = jobs.filter((j) => {
+    if (statusFilter !== "ALL" && j.status !== statusFilter) return false;
+    if (!search) return true;
+    const q = normalized(search);
+    const customerName = `${j.customer.firstName} ${j.customer.lastName}`.toLowerCase();
+    return (
+      j.title.toLowerCase().includes(q) ||
+      (j.trackingCode ?? "").toLowerCase().includes(q) ||
+      j.status.toLowerCase().includes(q) ||
+      customerName.includes(q) ||
+      (j.assignedTo?.fullName ?? "").toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="space-y-5">
@@ -56,7 +82,26 @@ export default function JobsPage() {
         title="Jobs"
         subtitle={`${jobs.length} total`}
         actions={
-          <>
+          <div className="flex items-center gap-2">
+            <input
+              aria-label="Search jobs"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search jobs, customer, tracking..."
+              className="rounded-md border px-3 py-1 text-sm"
+              style={{ borderColor: "var(--border)" }}
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-md border px-2 py-1 text-sm"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <option value="ALL">All statuses</option>
+              {(["PENDING","IN_PROGRESS","READY_FOR_FITTING","COMPLETED","DELIVERED","CANCELLED"] as const).map((s) => (
+                <option key={s} value={s}>{s.replaceAll("_"," ")}</option>
+              ))}
+            </select>
             <div
               className="flex rounded-lg border overflow-hidden text-xs font-medium"
               style={{ borderColor: "var(--border)" }}
@@ -78,16 +123,24 @@ export default function JobsPage() {
             <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
               + New job
             </button>
-          </>
+          </div>
         }
       />
 
       {jobsLoading ? (
         <div className="p-4"><TableSkeleton /></div>
       ) : view === "board" ? (
-        <JobBoard jobs={jobs} onStatusChange={updateStatus} onJobClick={(j) => openDrawer(j)} />
+        <JobBoard
+          jobs={filteredJobs}
+          onStatusChange={updateStatus}
+          onJobClick={(j) => setSelectedJob(j)}
+        />
       ) : (
-        <JobTable jobs={jobs} onStatusChange={updateStatus} onJobClick={(j) => openDrawer(j)} />
+        <JobTable
+          jobs={filteredJobs}
+          onStatusChange={updateStatus}
+          onJobClick={(j) => setSelectedJob(j)}
+        />
       )}
 
       <CreateJobModal
@@ -97,85 +150,13 @@ export default function JobsPage() {
         onCreated={() => mutateJobs()}
       />
 
-      {/* ── Job detail drawer ── */}
-      {drawerJob && (
-        <div className="fixed inset-0 z-40 flex items-stretch justify-end">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setDrawerJob(null)}
-            aria-hidden
-          />
-          {/* Drawer */}
-          <div
-            className="relative w-full max-w-md flex flex-col shadow-2xl"
-            style={{ background: "var(--bg-card)", borderLeft: "1px solid var(--border)" }}
-            role="dialog"
-            aria-label={`Job: ${drawerJob.title}`}
-          >
-            {/* Header */}
-            <div
-              className="flex items-start justify-between gap-3 px-5 py-4 border-b"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <div>
-                <h2 className="font-semibold">{drawerJob.title}</h2>
-                <p className="text-xs text-secondary mt-0.5">
-                  {drawerJob.customer.firstName} {drawerJob.customer.lastName}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusBadge status={drawerJob.status} />
-                <button
-                  onClick={() => setDrawerJob(null)}
-                  className="p-1.5 rounded-lg text-muted hover:text-primary transition-colors"
-                  aria-label="Close"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Deposit badge */}
-            {(drawerJob as Job & { depositAmount?: number; depositPaidAt?: string }).depositAmount && (
-              <div
-                className="mx-5 mt-3 px-3 py-2 rounded-lg text-sm flex items-center justify-between"
-                style={{ background: "var(--warn-light)", color: "var(--warn)" }}
-              >
-                <span>Deposit: {formatCurrency((drawerJob as Job & { depositAmount: number }).depositAmount)}</span>
-                <span className="text-xs font-medium">
-                  {(drawerJob as Job & { depositPaidAt?: string }).depositPaidAt ? "✓ Paid" : "Pending"}
-                </span>
-              </div>
-            )}
-
-            {/* Tabs */}
-            <div className="flex border-b" style={{ borderColor: "var(--border)" }} role="tablist">
-              {(["comments", "materials"] as const).map((t) => (
-                <button
-                  key={t}
-                  role="tab"
-                  aria-selected={drawerTab === t}
-                  onClick={() => setDrawerTab(t)}
-                  className={`flex-1 py-2.5 text-sm font-medium capitalize border-b-2 transition-colors -mb-px ${
-                    drawerTab === t ? "border-indigo-500 text-brand" : "border-transparent text-secondary hover:text-primary"
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            {/* Tab content */}
-            <div className="flex-1 overflow-y-auto p-5">
-              {drawerTab === "comments" && <JobComments jobId={drawerJob.id} />}
-              {drawerTab === "materials" && <JobMaterials jobId={drawerJob.id} />}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Job detail popup — replaces the side drawer */}
+      <JobPopup
+        job={selectedJob}
+        onClose={() => setSelectedJob(null)}
+        onStatusChange={updateStatus}
+        onUpdated={() => { mutateJobs(); }}
+      />
     </div>
   );
 }

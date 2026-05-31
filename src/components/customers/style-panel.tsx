@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { useToast } from "@/components/ui/toast";
@@ -13,6 +13,7 @@ type StyleProfile = {
   selectionMode: "CATALOG" | "UPLOAD" | "IMPRESS_ME" | null;
   catalogItemId?: string | null;
   uploadedImageUrl?: string | null;
+  uploadedImagePath?: string | null;
   notes?: string | null;
   catalogItem?: {
     id: string; name: string; imageUrl: string;
@@ -20,7 +21,19 @@ type StyleProfile = {
   } | null;
 };
 
-type Props = { customerId: string; shopId: string };
+type Props = {
+  customerId?: string;
+  jobId?: string;
+  shopId?: string;
+  persistable?: boolean;
+  onChange?: (profile: {
+    selectionMode: "CATALOG" | "UPLOAD" | "IMPRESS_ME" | null;
+    catalogItemId?: string | null;
+    uploadedImageUrl?: string | null;
+    uploadedImagePath?: string | null;
+    notes?: string | null;
+  }) => void;
+};
 
 const MODES = [
   {
@@ -43,13 +56,19 @@ const MODES = [
   },
 ] as const;
 
-export function StylePanel({ customerId, shopId }: Props) {
+export function StylePanel({ customerId, jobId, shopId, persistable = true, onChange }: Props) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [gender, setGender] = useState<string | null>(null);
 
+  const resourcePath = customerId
+    ? `/api/customers/${customerId}/style`
+    : jobId
+      ? `/api/jobs/${jobId}/style`
+      : null;
+
   const { data: profileData, mutate: mutateProfile } =
-    useSWR<{ profile: StyleProfile | null }>(`/api/customers/${customerId}/style`, fetcher);
+    useSWR<{ profile: StyleProfile | null }>(resourcePath, fetcher);
 
   // Filter catalog to customer's gender by default; "all" shows everything
   const [showAllGenders, setShowAllGenders] = useState(false);
@@ -61,35 +80,76 @@ export function StylePanel({ customerId, shopId }: Props) {
   const profile  = profileData?.profile;
   const catalog  = catalogData?.items ?? [];
 
-  const [mode, setMode]             = useState<typeof MODES[number]["id"] | null>(profile?.selectionMode ?? null);
-  const [selectedItemId, setItemId] = useState<string>(profile?.catalogItemId ?? "");
+  const [mode, setMode]             = useState<typeof MODES[number]["id"] | null>(null);
+  const [selectedItemId, setItemId] = useState<string>("");
   const [uploadResult, setUpload]   = useState<{ url: string; filePath: string; fileId: string } | null>(null);
-  const [notes, setNotes]           = useState(profile?.notes ?? "");
+  const [notes, setNotes]           = useState<string>("");
   const [catFilter, setCatFilter]   = useState<string>("all");
 
-  // Sync local state when profile loads
-  const syncedMode = mode ?? profile?.selectionMode ?? null;
+  // Reset selection state when the target resource changes
+  useEffect(() => {
+    setMode(null);
+    setItemId("");
+    setUpload(null);
+    setNotes("");
+    setCatFilter("all");
+  }, [resourcePath]);
+
+  // Sync local state when profile loads for the first time for the current resource
+  useEffect(() => {
+    if (!profile) return;
+    if (mode === null && selectedItemId === "" && !uploadResult && notes === "") {
+      setMode(profile.selectionMode ?? null);
+      setItemId(profile.catalogItemId ?? "");
+      setNotes(profile.notes ?? "");
+      if (profile.selectionMode === "UPLOAD" && profile.uploadedImageUrl && profile.uploadedImagePath) {
+        setUpload({ url: profile.uploadedImageUrl, filePath: profile.uploadedImagePath, fileId: "existing" });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, resourcePath]);
+
+  const currentMode = mode ?? profile?.selectionMode ?? null;
+  const currentCatalogItemId = (selectedItemId || profile?.catalogItemId) ?? null;
+  const currentUploadedImageUrl = uploadResult?.url ?? profile?.uploadedImageUrl ?? null;
+  const currentUploadedImagePath = uploadResult?.filePath ?? profile?.uploadedImagePath ?? null;
+  const currentNotes = notes ?? profile?.notes ?? null;
 
   const categories = Array.from(
     new Map(catalog.map(i => [i.category.id, i.category])).values()
   );
   const filteredItems = catFilter === "all" ? catalog : catalog.filter(i => i.category.id === catFilter);
 
+  // Notify parent when style selection changes (useful when embedded in CreateJob modal)
+  useEffect(() => {
+    if (typeof onChange === "function") {
+      onChange({
+        selectionMode: currentMode,
+        catalogItemId: currentCatalogItemId,
+        uploadedImageUrl: currentUploadedImageUrl,
+        uploadedImagePath: currentUploadedImagePath,
+        notes: currentNotes,
+      });
+    }
+  }, [currentMode, currentCatalogItemId, currentUploadedImageUrl, currentUploadedImagePath, currentNotes, onChange]);
+
   async function save() {
-    if (!syncedMode) { toast("Choose a style mode first.", "error"); return; }
-    if (syncedMode === "CATALOG" && !selectedItemId) { toast("Select a catalog style.", "error"); return; }
-    if (syncedMode === "UPLOAD" && !uploadResult && !profile?.uploadedImageUrl) {
+    if (!resourcePath) { toast("No style resource configured.", "error"); return; }
+    if (!persistable) { return; }
+    if (!currentMode) { toast("Choose a style mode first.", "error"); return; }
+    if (currentMode === "CATALOG" && !currentCatalogItemId) { toast("Select a catalog style.", "error"); return; }
+    if (currentMode === "UPLOAD" && !currentUploadedImageUrl) {
       toast("Upload an image first.", "error"); return;
     }
 
     setSaving(true);
     try {
       const body =
-        syncedMode === "CATALOG"    ? { selectionMode: "CATALOG",    catalogItemId: selectedItemId, notes } :
-        syncedMode === "UPLOAD"     ? { selectionMode: "UPLOAD",     uploadedImageUrl: uploadResult?.url ?? profile?.uploadedImageUrl, uploadedImagePath: uploadResult?.filePath ?? "", notes } :
-                                      { selectionMode: "IMPRESS_ME", notes };
+        currentMode === "CATALOG"    ? { selectionMode: "CATALOG",    catalogItemId: currentCatalogItemId, notes: currentNotes } :
+        currentMode === "UPLOAD"     ? { selectionMode: "UPLOAD",     uploadedImageUrl: currentUploadedImageUrl, uploadedImagePath: currentUploadedImagePath ?? "", notes: currentNotes } :
+                                      { selectionMode: "IMPRESS_ME", notes: currentNotes };
 
-      const res = await fetch(`/api/customers/${customerId}/style`, {
+      const res = await fetch(resourcePath, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -105,8 +165,6 @@ export function StylePanel({ customerId, shopId }: Props) {
     }
   }
 
-  const currentMode = syncedMode;
-
   return (
     <div className="space-y-5">
       {/* Current style summary */}
@@ -121,7 +179,7 @@ export function StylePanel({ customerId, shopId }: Props) {
               <img
                 src={profile.catalogItem.imageUrl.split("?")[0]}
                 alt={profile.catalogItem.name}
-                className="h-16 w-16 object-cover rounded-lg flex-shrink-0"
+                className="h-16 w-16 object-cover rounded-lg shrink-0"
               />
               <div>
                 <p className="text-xs text-muted mb-0.5">Current selection</p>
@@ -136,7 +194,7 @@ export function StylePanel({ customerId, shopId }: Props) {
               <img
                 src={profile.uploadedImageUrl.split("?")[0]}
                 alt="Customer upload"
-                className="h-16 w-16 object-cover rounded-lg flex-shrink-0"
+                className="h-16 w-16 object-cover rounded-lg shrink-0"
               />
               <div>
                 <p className="text-xs text-muted mb-0.5">Current selection</p>
@@ -146,7 +204,7 @@ export function StylePanel({ customerId, shopId }: Props) {
           )}
           {profile.selectionMode === "IMPRESS_ME" && (
             <>
-              <div className="h-16 w-16 rounded-lg flex items-center justify-center text-3xl flex-shrink-0"
+              <div className="h-16 w-16 rounded-lg flex items-center justify-center text-3xl shrink-0"
                 style={{ background: "var(--purple-light)" }}>✨</div>
               <div>
                 <p className="text-xs text-muted mb-0.5">Current selection</p>
@@ -282,10 +340,18 @@ export function StylePanel({ customerId, shopId }: Props) {
       {/* ── UPLOAD mode ── */}
       {currentMode === "UPLOAD" && (
         <ImageUploader
-          folder={`/etailor/${shopId}/styles/customers/${customerId}`}
-          fileName={`style-${customerId}`}
+          folder={
+            customerId
+              ? shopId
+                ? `/etailor/${shopId}/styles/customers/${customerId}`
+                : `/etailor/styles/customers/${customerId}`
+              : shopId
+                ? `/etailor/${shopId}/styles/jobs`
+                : `/etailor/styles/jobs`
+          }
+          fileName={`style-${customerId ?? "new-job"}`}
           currentUrl={profile?.uploadedImageUrl}
-          label="Customer's style reference"
+          label="Style reference"
           hint="Photo, screenshot, or sketch — JPG, PNG, WebP"
           aspectHint="Any"
           onUploaded={setUpload}
@@ -328,7 +394,7 @@ export function StylePanel({ customerId, shopId }: Props) {
       )}
 
       {/* Save button */}
-      {currentMode && (
+      {currentMode && persistable && (
         <div className="flex justify-end">
           <button className="btn btn-primary btn-sm" onClick={save} disabled={saving}>
             {saving ? "Saving…" : "Save style preference"}
@@ -338,3 +404,6 @@ export function StylePanel({ customerId, shopId }: Props) {
     </div>
   );
 }
+
+
+

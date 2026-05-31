@@ -107,7 +107,7 @@ export default function AdminUsersPage() {
                 <tr key={u.id}>
                   <td>
                     <div className="flex items-center gap-2.5">
-                      <div className="h-8 w-8 rounded-full bg-stone-200 dark:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 flex items-center justify-center flex-shrink-0">
+                      <div className="h-8 w-8 rounded-full bg-stone-200 dark:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 flex items-center justify-center shrink-0">
                         {initials(u.fullName)}
                       </div>
                       <div>
@@ -162,3 +162,6 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+
+
+

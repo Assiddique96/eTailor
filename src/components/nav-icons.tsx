@@ -12,7 +12,7 @@ const props = {
   stroke: "currentColor",
   strokeWidth: 1.8,
   "aria-hidden": true as const,
-  className: "flex-shrink-0",
+  className: "shrink-0",
 } as const;
 
 export function IconDashboard() {
@@ -104,7 +104,7 @@ export function IconSettings() {
 
 export function IconAdmin() {
   return (
-    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden className="flex-shrink-0">
+    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} aria-hidden className="shrink-0">
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
   );
@@ -118,6 +118,7 @@ export const NAV_ICON_MAP: Record<string, React.ComponentType> = {
   "/billing":   IconBilling,
   "/messages":  IconMessages,
   "/team":      IconTeam,
+  "/catalog":   IconCatalog,
   "/search":    IconSearch,
   "/audit":     IconAudit,
   "/settings":  IconSettings,
@@ -133,3 +134,6 @@ export function IconCatalog() {
     </svg>
   );
 }
+
+
+

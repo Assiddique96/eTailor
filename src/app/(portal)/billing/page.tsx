@@ -21,6 +21,22 @@ export default function BillingPage() {
 
   const invoices = invData?.invoices ?? [];
   const customers = custData?.customers ?? [];
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+  const normalized = (s: string) => s.trim().toLowerCase();
+  const filteredInvoices = invoices.filter((inv) => {
+    if (statusFilter !== "ALL" && inv.paymentStatus !== statusFilter) return false;
+    if (!search) return true;
+    const q = normalized(search);
+    const customerName = `${inv.customer.firstName} ${inv.customer.lastName}`.toLowerCase();
+    return (
+      inv.invoiceNumber.toLowerCase().includes(q) ||
+      inv.total.toLowerCase().includes(q) ||
+      customerName.includes(q) ||
+      inv.paymentStatus.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="space-y-5">
@@ -28,9 +44,30 @@ export default function BillingPage() {
         title="Billing"
         subtitle={`${invoices.length} invoice${invoices.length !== 1 ? "s" : ""}`}
         actions={
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
-            + New invoice
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              aria-label="Search invoices"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search invoices, customer, amount..."
+              className="rounded-md border px-3 py-1 text-sm"
+              style={{ borderColor: "var(--border)" }}
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-md border px-2 py-1 text-sm"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <option value="ALL">All statuses</option>
+              <option value="PAID">Paid</option>
+              <option value="PARTIAL">Partial</option>
+              <option value="PENDING">Pending</option>
+            </select>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+              + New invoice
+            </button>
+          </div>
         }
       />
 
@@ -40,7 +77,7 @@ export default function BillingPage() {
         {isLoading ? (
           <div className="p-4"><TableSkeleton /></div>
         ) : (
-          <InvoiceTable invoices={invoices} onRecordPayment={setPayingInvoice} />
+          <InvoiceTable invoices={filteredInvoices} onRecordPayment={setPayingInvoice} />
         )}
       </div>
 

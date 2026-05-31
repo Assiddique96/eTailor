@@ -117,7 +117,7 @@ export function RemoteLinkPanel({
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span
-                    className="badge text-xs flex-shrink-0"
+                    className="badge text-xs shrink-0"
                     style={{
                       background: link.usedAt ? "var(--success-light)" :
                                   link.expired ? "var(--danger-light)"  : "var(--info-light)",
@@ -127,7 +127,7 @@ export function RemoteLinkPanel({
                   >
                     {link.usedAt ? "✓ Used" : link.expired ? "Expired" : "Active"}
                   </span>
-                  <span className="text-xs text-muted flex-shrink-0">
+                  <span className="text-xs text-muted shrink-0">
                     {genderLabel(link.gender)}
                   </span>
                   <span className="text-xs text-muted truncate">
@@ -136,7 +136,7 @@ export function RemoteLinkPanel({
                 </div>
                 {link.active && (
                   <button
-                    className="btn btn-ghost btn-sm flex-shrink-0"
+                    className="btn btn-ghost btn-sm shrink-0"
                     onClick={() => copyUrl(link.url)}
                     aria-label="Copy link to clipboard"
                   >
@@ -206,7 +206,7 @@ export function RemoteLinkPanel({
                   onFocus={(e) => e.target.select()}
                 />
                 <button
-                  className="btn btn-primary btn-sm flex-shrink-0"
+                  className="btn btn-primary btn-sm shrink-0"
                   onClick={() => copyUrl(generatedUrl)}
                   aria-label="Copy link"
                 >
@@ -304,3 +304,7 @@ export function RemoteLinkPanel({
     </>
   );
 }
+
+
+
+

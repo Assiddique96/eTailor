@@ -95,7 +95,7 @@ export default function TeamPage() {
                         <td>
                           <div className="flex items-center gap-2.5">
                             <div
-                              className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0"
+                              className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0"
                               style={{ background: "var(--bg-base)", color: "var(--text-secondary)" }}
                               aria-hidden
                             >
@@ -156,7 +156,7 @@ export default function TeamPage() {
                         <p className="text-sm text-secondary mt-0.5">{role.description}</p>
                       )}
                     </div>
-                    <span className="text-xs text-muted flex-shrink-0">
+                    <span className="text-xs text-muted shrink-0">
                       {role.permissions.length} permissions
                     </span>
                   </div>
@@ -192,3 +192,6 @@ export default function TeamPage() {
     </div>
   );
 }
+
+
+

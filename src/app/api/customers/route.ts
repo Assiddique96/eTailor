@@ -5,14 +5,14 @@ import { writeAuditLog } from "@/lib/audit";
 import { db } from "@/lib/db";
 
 const createCustomerSchema = z.object({
-  firstName:     z.string().min(1, "First name is required"),
-  lastName:      z.string().min(1, "Last name is required"),
-  gender:        z.enum(["MALE", "FEMALE", "OTHER"]).optional().nullable(),
-  phone:         z.string().optional().nullable(),
-  email:         z.string().email().optional().nullable(),
-  preferredFit:  z.string().optional().nullable(),
+  firstName:      z.string().min(1, "First name is required"),
+  lastName:       z.string().min(1, "Last name is required"),
+  gender:         z.enum(["MALE", "FEMALE", "OTHER"]).optional().nullable(),
+  phone:          z.string().optional().nullable(),
+  email:          z.string().email().optional().nullable(),
+  preferredFit:   z.string().optional().nullable(),
   preferredStyle: z.string().optional().nullable(),
-  notes:         z.string().optional().nullable(),
+  notes:          z.string().optional().nullable(),
 });
 
 export const GET = withAuth({ permission: "customers.read" }, async ({ request, user }) => {
@@ -38,13 +38,22 @@ export const GET = withAuth({ permission: "customers.read" }, async ({ request, 
     orderBy: { createdAt: "desc" },
     take:    limit + 1,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    include: {
+      // Counts for the list view
+      _count: { select: { jobs: true, invoices: true } },
+      // Latest job date
+      jobs: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { createdAt: true },
+      },
+    },
   });
 
   const hasMore    = items.length > limit;
   const customers  = hasMore ? items.slice(0, limit) : items;
   const nextCursor = hasMore ? customers[customers.length - 1].id : null;
 
-  // Provide a total count only for non-cursor (first) pages — avoids full scan on paginated requests
   const total = !cursor
     ? await db.customer.count({ where })
     : null;

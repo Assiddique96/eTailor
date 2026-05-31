@@ -123,7 +123,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
         <span className="font-medium text-sm leading-relaxed">{q}</span>
         <svg
           width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-          className="flex-shrink-0 mt-0.5 transition-transform"
+          className="shrink-0 mt-0.5 transition-transform"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", color: "var(--text-muted)" }}
         >
           <polyline points="6 9 12 15 18 9"/>
@@ -153,7 +153,7 @@ export default function FaqPage() {
       <div className="mx-auto max-w-6xl px-5 pb-16">
         <div className="flex flex-col md:flex-row gap-8">
           {/* Category sidebar */}
-          <aside className="md:w-52 flex-shrink-0">
+          <aside className="md:w-52 shrink-0">
             <div className="md:sticky md:top-24 space-y-1">
               {FAQS.map((cat) => (
                 <button
@@ -202,3 +202,6 @@ export default function FaqPage() {
     </div>
   );
 }
+
+
+

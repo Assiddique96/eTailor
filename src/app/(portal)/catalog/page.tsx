@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/ui/page-header";
 import { Modal } from "@/components/ui/modal";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { ImageUploader } from "@/components/ui/image-uploader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +26,15 @@ export default function CatalogPage() {
   const [showNewCat, setShowNewCat]   = useState(false);
   const [showNewItem, setShowNewItem] = useState(false);
 
+  // Confirm modal state — replaces all window.confirm() calls
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => Promise<void>;
+    loading: boolean;
+  }>({ open: false, title: "", message: "", onConfirm: async () => {}, loading: false });
+
   const { data: catData, isLoading: catLoading, mutate: mutateCats } =
     useSWR<{ categories: Category[]; shopId: string }>("/api/catalog/categories", fetcher);
 
@@ -39,23 +49,44 @@ export default function CatalogPage() {
   const categories = catData?.categories ?? [];
   const items      = itemData?.items      ?? [];
 
-  async function deleteItem(id: string, name: string) {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
-    const res = await fetch(`/api/catalog/items/${id}`, { method: "DELETE" });
-    if (res.ok) { toast("Item deleted."); mutateItems(); }
-    else toast("Failed to delete item.", "error");
+  function openConfirm(title: string, message: string, action: () => Promise<void>) {
+    setConfirmState({ open: true, title, message, onConfirm: action, loading: false });
   }
 
-  async function deleteCategory(id: string, name: string, count: number) {
-    if (count > 0 && !confirm(`"${name}" has ${count} items. Deleting the category will also delete all its items. Continue?`)) return;
-    else if (count === 0 && !confirm(`Delete category "${name}"?`)) return;
-    const res = await fetch(`/api/catalog/categories/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      toast("Category deleted.");
-      mutateCats();
-      mutateItems();
-      if (activeCatId === id) setActiveCatId("all");
-    } else toast("Failed to delete category.", "error");
+  const handleConfirm = useCallback(async () => {
+    setConfirmState((s) => ({ ...s, loading: true }));
+    try {
+      await confirmState.onConfirm();
+    } finally {
+      setConfirmState((s) => ({ ...s, open: false, loading: false }));
+    }
+  }, [confirmState]);
+
+  function deleteItem(id: string, name: string) {
+    openConfirm(
+      "Delete style",
+      `Delete "${name}"? This cannot be undone.`,
+      async () => {
+        const res = await fetch(`/api/catalog/items/${id}`, { method: "DELETE" });
+        if (res.ok) { toast("Style deleted."); mutateItems(); }
+        else toast("Failed to delete style.", "error");
+      }
+    );
+  }
+
+  function deleteCategory(id: string, name: string, count: number) {
+    const message = count > 0
+      ? `"${name}" has ${count} style${count > 1 ? "s" : ""}. Deleting the category will also delete all its items. Continue?`
+      : `Delete category "${name}"?`;
+    openConfirm("Delete category", message, async () => {
+      const res = await fetch(`/api/catalog/categories/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast("Category deleted.");
+        mutateCats();
+        mutateItems();
+        if (activeCatId === id) setActiveCatId("all");
+      } else toast("Failed to delete category.", "error");
+    });
   }
 
   return (
@@ -81,7 +112,7 @@ export default function CatalogPage() {
 
       <div className="flex gap-5">
         {/* ── Sidebar: category list ── */}
-        <aside className="w-48 flex-shrink-0 space-y-1">
+        <aside className="w-48 shrink-0 space-y-1">
           <button
             onClick={() => setActiveCatId("all")}
             className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
@@ -178,7 +209,6 @@ export default function CatalogPage() {
         onCreated={() => { mutateCats(); setShowNewCat(false); }}
       />
 
-      {/* key prop forces full remount on each open — clears all state including upload */}
       <NewItemModal
         key={showNewItem ? "open" : "closed"}
         open={showNewItem}
@@ -190,6 +220,18 @@ export default function CatalogPage() {
           mutateItems(undefined, { revalidate: true });
           setShowNewItem(false);
         }}
+      />
+
+      {/* Accessible confirm dialog — replaces window.confirm() */}
+      <ConfirmModal
+        open={confirmState.open}
+        onClose={() => setConfirmState((s) => ({ ...s, open: false }))}
+        onConfirm={handleConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel="Delete"
+        danger
+        loading={confirmState.loading}
       />
     </div>
   );
@@ -216,7 +258,6 @@ function CatalogCard({ item, onDelete }: { item: CatalogItem; onDelete: () => vo
         />
       </div>
 
-      {/* Hover overlay */}
       <div
         className="absolute inset-0 flex flex-col justify-end p-3 transition-opacity duration-200"
         style={{
@@ -244,7 +285,6 @@ function CatalogCard({ item, onDelete }: { item: CatalogItem; onDelete: () => vo
         </button>
       </div>
 
-      {/* Always-visible label */}
       <div className="p-2.5">
         <p className="text-sm font-medium truncate">{item.name}</p>
         {item.tags.length > 0 && (
@@ -298,9 +338,7 @@ function NewCategoryModal({ open, onClose, onCreated }: {
       title="New category"
       footer={
         <>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>
-            Cancel
-          </button>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="btn btn-primary btn-sm" onClick={submit} disabled={saving}>
             {saving ? "Creating…" : "Create"}
           </button>
@@ -372,7 +410,6 @@ function NewItemModal({ open, onClose, categories, defaultCategoryId, onCreated,
         description: fields.description.trim() || undefined,
         imageUrl:    upload!.url,
         imagePath:   upload!.filePath,
-        // fileId intentionally excluded — not a DB column
         tags:        fields.tags.split(",").map(t => t.trim()).filter(Boolean),
         gender:      itemGenders,
       }),
@@ -396,9 +433,7 @@ function NewItemModal({ open, onClose, categories, defaultCategoryId, onCreated,
       title="Add style to catalog"
       footer={
         <>
-          <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>
-            Cancel
-          </button>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} disabled={saving}>Cancel</button>
           <button
             className="btn btn-primary btn-sm"
             onClick={submit}
@@ -422,9 +457,7 @@ function NewItemModal({ open, onClose, categories, defaultCategoryId, onCreated,
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            {errors.categoryId && (
-              <p className="text-xs text-danger">{errors.categoryId}</p>
-            )}
+            {errors.categoryId && <p className="text-xs text-danger">{errors.categoryId}</p>}
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-secondary">Style name *</label>
@@ -493,7 +526,6 @@ function NewItemModal({ open, onClose, categories, defaultCategoryId, onCreated,
         </div>
 
         <div>
-          {/* Unique fileName per upload prevents ImageKit from overwriting previous files */}
           <ImageUploader
             folder={`/etailor/${shopId}/catalog`}
             fileName={`${fields.name || "catalog-item"}-${Date.now()}`}
@@ -506,11 +538,12 @@ function NewItemModal({ open, onClose, categories, defaultCategoryId, onCreated,
             }}
             onError={msg => toast(msg, "error")}
           />
-          {errors.image && (
-            <p className="text-xs text-danger mt-1">{errors.image}</p>
-          )}
+          {errors.image && <p className="text-xs text-danger mt-1">{errors.image}</p>}
         </div>
       </div>
     </Modal>
   );
 }
+
+
+

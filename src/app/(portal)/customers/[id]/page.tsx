@@ -1,13 +1,17 @@
 "use client";
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 import { MeasurementPanel } from "@/components/customers/measurement-panel";
 import { StylePanel } from "@/components/customers/style-panel";
 import { RemoteLinkPanel } from "@/components/customers/remote-link-panel";
+import { CreateJobModal } from "@/components/jobs/create-job-modal";
+import InvoiceForm from "@/components/invoices/invoice-form";
 import type { Gender } from "@/lib/measurement-fields";
 
 type MeasurementLink = {
@@ -26,8 +30,17 @@ type CustomerDetails = {
   preferredStyle?: string;
   notes?: string;
   measurements: Array<{ id: string; recordedAt: string; recordedBy?: string | null; [key: string]: unknown }>;
-  jobs: Array<{ id: string; title: string; status: string; dueDate: string }>;
-  invoices: Array<{ id: string; invoiceNumber: string; total: string; paymentStatus: string }>;
+  jobs: Array<{ id: string; title: string; status: string; dueDate: string; trackingCode?: string | null; priority?: string | null }>;
+  invoices: Array<{
+    id: string;
+    invoiceNumber: string;
+    total: string;
+    paymentStatus: string;
+    issuedAt?: string | null;
+    dueAt?: string | null;
+    jobId?: string | null;
+    lines?: Array<{ id: string; description: string; quantity: number; unitPrice: number; amount: number }>;
+  }>;
   measurementLinks: MeasurementLink[];
   shopId?: string;
   styleProfile?: { selectionMode: string | null } | null;
@@ -59,7 +72,7 @@ export default function CustomerDetailPage({
     { id: "invoices",     label: "Invoices",     count: customer.invoices.length },
   ] as const;
 
-  type TabId = typeof TABS[number]["id"];
+  
 
   return (
     <CustomerDetailView
@@ -80,10 +93,26 @@ function CustomerDetailView({
   tabs: readonly { id: string; label: string; count: number }[];
   onMutate: () => void;
 }) {
-  // useState inside a nested component is fine — it's always rendered when customer exists
-  const [activeTab, setActiveTab] = React.useState<string>("measurements");
+  const [activeTab, setActiveTab] = useState<string>("measurements");
+  const [jobSearch, setJobSearch] = useState("");
+  const [showCreateJob, setShowCreateJob] = useState(false);
+  const [showCreateInvoice, setShowCreateInvoice] = useState(false);
+  
 
   const activeLinks = customer.measurementLinks.filter((l) => l.active);
+
+  const PRIORITY_LABELS: Record<string, string> = {
+    URGENT: "Urgent",
+    HIGH: "High",
+    NORMAL: "Normal",
+    LOW: "Low",
+    MINIMAL: "Minimal",
+  };
+
+  const jobById: Record<string, string> = customer.jobs.reduce((acc, j) => {
+    acc[j.id] = j.title;
+    return acc;
+  }, {} as Record<string, string>);
 
   return (
     <div className="space-y-5">
@@ -99,7 +128,7 @@ function CustomerDetailView({
       <div className="card p-5">
         <div className="flex items-start gap-4">
           <div
-            className="h-14 w-14 rounded-2xl flex items-center justify-center text-xl font-semibold flex-shrink-0"
+            className="h-14 w-14 rounded-2xl flex items-center justify-center text-xl font-semibold shrink-0"
             style={{ background: "var(--brand-light)", color: "var(--brand)" }}
             aria-hidden
           >
@@ -213,66 +242,215 @@ function CustomerDetailView({
 
       {/* ── Jobs tab ── */}
       {activeTab === "jobs" && (
-        <div className="card overflow-hidden">
-          {customer.jobs.length === 0 ? (
-            <p className="text-center text-secondary py-10 text-sm">No jobs for this customer.</p>
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr><th>Title</th><th>Status</th><th>Due date</th></tr>
-              </thead>
-              <tbody>
-                {customer.jobs.map((j) => (
-                  <tr key={j.id}>
-                    <td className="font-medium">{j.title}</td>
-                    <td><StatusBadge status={j.status} /></td>
-                    <td className="text-secondary text-sm">
-                      {new Date(j.dueDate).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <input
+              value={jobSearch}
+              onChange={(e) => setJobSearch(e.target.value)}
+              placeholder="Search jobs by title or status…"
+              className="field max-w-md"
+              aria-label="Search jobs"
+            />
+            <button className="btn btn-primary btn-sm" onClick={() => setShowCreateJob(true)}>
+              + Add job
+            </button>
+          </div>
+
+          <div className="card overflow-hidden">
+            {customer.jobs.filter((job) =>
+              job.title.toLowerCase().includes(jobSearch.toLowerCase()) ||
+              job.status.toLowerCase().includes(jobSearch.toLowerCase())
+            ).length === 0 ? (
+              <p className="text-center text-secondary py-10 text-sm">
+                {jobSearch ? "No matching jobs found." : "No jobs for this customer."}
+              </p>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr><th>Title</th><th>Tracking ID</th><th>Status</th><th>Priority</th><th>Due date</th></tr>
+                </thead>
+                <tbody>
+                  {customer.jobs
+                    .filter((job) =>
+                      job.title.toLowerCase().includes(jobSearch.toLowerCase()) ||
+                      job.status.toLowerCase().includes(jobSearch.toLowerCase()) ||
+                      (job.trackingCode ?? "").toLowerCase().includes(jobSearch.toLowerCase()) ||
+                      String(job.priority ?? "").toLowerCase().includes(jobSearch.toLowerCase())
+                    )
+                    .map((j) => (
+                      <tr key={j.id}>
+                        <td className="font-medium">{j.title}</td>
+                        <td className="text-xs text-secondary">{j.trackingCode ?? "Not set"}</td>
+                        <td><StatusBadge status={j.status} /></td>
+                        <td className="text-sm text-secondary">{j.priority ? (PRIORITY_LABELS[String(j.priority).toUpperCase()] ?? j.priority) : "—"}</td>
+                        <td className="text-secondary text-sm">{j.dueDate ? new Date(j.dueDate).toLocaleDateString() : "—"}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
 
       {/* ── Invoices tab ── */}
       {activeTab === "invoices" && (
-        <div className="card overflow-hidden">
-          {customer.invoices.length === 0 ? (
-            <p className="text-center text-secondary py-10 text-sm">No invoices for this customer.</p>
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr><th>Invoice</th><th>Total</th><th>Status</th><th></th></tr>
-              </thead>
-              <tbody>
-                {customer.invoices.map((i) => (
-                  <tr key={i.id}>
-                    <td className="font-medium font-mono text-sm">{i.invoiceNumber}</td>
-                    <td>${Number(i.total).toFixed(2)}</td>
-                    <td><StatusBadge status={i.paymentStatus} /></td>
-                    <td>
-                      <a
-                        href={`/api/invoices/${i.id}/pdf`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-ghost btn-sm"
-                      >
-                        PDF
-                      </a>
-                    </td>
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button className="btn btn-primary btn-sm" onClick={() => setShowCreateInvoice(true)}>
+              + New invoice
+            </button>
+          </div>
+
+          <div className="card overflow-hidden">
+            {customer.invoices.length === 0 ? (
+              <p className="text-center text-secondary py-10 text-sm">No invoices for this customer.</p>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Invoice</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th>Issued</th>
+                    <th>Due</th>
+                    <th>Job</th>
+                    <th></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  {customer.invoices.map((i) => (
+                    <tr key={i.id}>
+                      <td className="font-medium font-mono text-sm">{i.invoiceNumber}</td>
+                      <td>${Number(i.total).toFixed(2)}</td>
+                      <td><StatusBadge status={i.paymentStatus} /></td>
+                      <td className="text-secondary text-sm">{i.issuedAt ? new Date(i.issuedAt).toLocaleDateString() : "—"}</td>
+                      <td className="text-secondary text-sm">{i.dueAt ? new Date(i.dueAt).toLocaleDateString() : "—"}</td>
+                      <td className="text-secondary text-sm">{i.jobId ? jobById[i.jobId] ?? i.jobId : "—"}</td>
+                      <td>
+                        <div className="flex gap-1">
+                          <a
+                            href={`/api/invoices/${i.id}/pdf`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-ghost btn-sm"
+                          >
+                            PDF
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
+
+      <CreateJobModal
+        open={showCreateJob}
+        onClose={() => setShowCreateJob(false)}
+        customers={[{ id: customer.id, firstName: customer.firstName, lastName: customer.lastName }]}
+        onCreated={() => {
+          onMutate();
+          setShowCreateJob(false);
+        }}
+        defaultCustomerId={customer.id}
+      />
+
+      <CreateCustomerInvoiceModal
+        open={showCreateInvoice}
+        onClose={() => setShowCreateInvoice(false)}
+        customerId={customer.id}
+        onCreated={() => {
+          onMutate();
+          setShowCreateInvoice(false);
+        }}
+      />
     </div>
   );
 }
 
-// Need React import for useState inside nested component
-import React from "react";
+function CreateCustomerInvoiceModal({
+  open,
+  onClose,
+  customerId,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  customerId: string;
+  onCreated: () => void;
+}) {
+  const { toast } = useToast();
+  const [creating, setCreating] = useState(false);
+
+  async function handleSubmit(invoiceData: unknown) {
+    setCreating(true);
+    try {
+      const data = invoiceData as {
+        jobId?: string;
+        lineItems: Array<{ description: string; quantity: number; unitPrice: number }>;
+        discount?: number;
+        tax?: number;
+        dueAt?: Date | null;
+        notes?: string;
+        subtotal?: number;
+        total?: number;
+      };
+
+      const res = await fetch("/api/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId,
+          jobId: data.jobId || undefined,
+          lines: data.lineItems.map((line) => ({
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+          })),
+          discount: data.discount,
+          tax: data.tax,
+          dueAt: data.dueAt ? data.dueAt.toISOString() : undefined,
+          notes: data.notes,
+          subtotal: data.subtotal,
+          total: data.total,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast(err.error ?? "Failed to create invoice.", "error");
+        return;
+      }
+      toast("Invoice created.");
+      onCreated();
+      onClose();
+    } catch {
+      toast("Network error.", "error");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Create invoice"
+      footer={null}
+    >
+      <InvoiceForm
+        customerId={customerId}
+        onCancel={onClose}
+        onSubmit={handleSubmit}
+        isLoading={creating}
+      />
+    </Modal>
+  );
+}
+
+
+
+

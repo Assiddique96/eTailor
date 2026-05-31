@@ -150,7 +150,7 @@ export function NotificationsBell() {
                       setOpen(false);
                     }}
                   >
-                    <span className="text-lg flex-shrink-0 mt-0.5" aria-hidden>
+                    <span className="text-lg shrink-0 mt-0.5" aria-hidden>
                       {TYPE_ICON[n.type] ?? "🔔"}
                     </span>
                     <div className="flex-1 min-w-0">
@@ -160,7 +160,7 @@ export function NotificationsBell() {
                         {new Date(n.createdAt).toLocaleString()}
                       </p>
                     </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <div className="flex flex-col items-end gap-1 shrink-0">
                       {!n.isRead && (
                         <span
                           className="h-2 w-2 rounded-full mt-1.5"
@@ -185,3 +185,5 @@ export function NotificationsBell() {
     </div>
   );
 }
+
+

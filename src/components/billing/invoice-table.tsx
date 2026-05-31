@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatCurrency } from "@/lib/currency";
@@ -34,8 +34,8 @@ export function InvoiceTable({ invoices, onRecordPayment }: Props) {
       </thead>
       <tbody>
         {invoices.map((inv) => (
-          <>
-            <tr key={inv.id}>
+          <Fragment key={inv.id}>
+            <tr>
               {/* Expand toggle for line items */}
               <td style={{ width: 32, paddingRight: 0 }}>
                 {(inv as Invoice & { lines?: unknown[] }).lines?.length ? (
@@ -95,7 +95,7 @@ export function InvoiceTable({ invoices, onRecordPayment }: Props) {
                 <td colSpan={2} />
               </tr>
             ))}
-          </>
+          </Fragment>
         ))}
       </tbody>
     </table>

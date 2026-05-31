@@ -50,7 +50,7 @@ function ResultCard({ result }: { result: SearchResult }) {
       className="card p-4 flex items-center gap-3 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors group"
     >
       <div
-        className="h-9 w-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+        className="h-9 w-9 rounded-xl flex items-center justify-center text-lg shrink-0"
         style={{ background: config.bg, color: config.color }}
         aria-hidden
       >
@@ -60,7 +60,7 @@ function ResultCard({ result }: { result: SearchResult }) {
         <p className="font-medium text-sm group-hover:text-brand transition-colors">{title}</p>
         {subtitle && <p className="text-xs text-secondary mt-0.5 truncate">{subtitle}</p>}
       </div>
-      <span className="badge text-xs flex-shrink-0" style={{ background: config.bg, color: config.color }}>
+      <span className="badge text-xs shrink-0" style={{ background: config.bg, color: config.color }}>
         {config.label}
       </span>
     </Link>
@@ -173,3 +173,6 @@ export default function SearchPage() {
     </div>
   );
 }
+
+
+

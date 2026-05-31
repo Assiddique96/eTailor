@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { db } from "@/lib/db";
+import { PERMISSIONS } from "@/lib/permissions";
 
 const SESSION_COOKIE = "etailor_session";
 const encoder = new TextEncoder();
@@ -21,7 +22,6 @@ function getJwtSecret() {
   return encoder.encode(secret);
 }
 
-/** Generates a random JTI (JWT ID) for session tracking. */
 function generateJti(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -30,11 +30,67 @@ function generateJti(): string {
     .join("");
 }
 
+/**
+ * Ensures a SHOP_ADMIN user always has the "shop-admin" system role assigned.
+ * This is the fix for the empty customers tab: previously SHOP_ADMIN had a
+ * blanket `return true` bypass in hasPermission(). Now access is fully driven
+ * by role permissions in the DB. If a SHOP_ADMIN user doesn't have the
+ * "shop-admin" role row, this function creates it so they always have full access.
+ */
+async function ensureShopAdminRole(userId: string, shopId: string) {
+  const systemRole = await db.role.upsert({
+    where: { shopId_name: { shopId, name: "shop-admin" } },
+    update: { description: "Full access — assigned to shop owners." },
+    create: {
+      shopId,
+      name: "shop-admin",
+      description: "Full access — assigned to shop owners.",
+      isSystem: true,
+    },
+    select: { id: true },
+  });
+
+  for (const permissionKey of PERMISSIONS) {
+    const permission = await db.permission.upsert({
+      where: { key: permissionKey },
+      update: {},
+      create: { key: permissionKey, label: permissionKey },
+    });
+
+    await db.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: systemRole.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: systemRole.id,
+        permissionId: permission.id,
+      },
+    });
+  }
+
+  const existing = await db.userRole.findFirst({
+    where: { userId, roleId: systemRole.id },
+  });
+  if (!existing) {
+    await db.userRole.create({ data: { userId, roleId: systemRole.id } });
+  }
+}
+
 export async function createSessionToken(
   payload: Omit<SessionPayload, "jti">
 ): Promise<{ token: string; jti: string }> {
   const jti = generateJti();
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+
+  // If this user is a SHOP_ADMIN, guarantee they have the system role so that
+  // all permission-guarded routes work correctly without a hard-coded bypass.
+  if (payload.platformRole === "SHOP_ADMIN" && payload.shopId) {
+    await ensureShopAdminRole(payload.sub, payload.shopId);
+  }
 
   const token = await new SignJWT({ ...payload, jti })
     .setProtectedHeader({ alg: "HS256" })
@@ -44,13 +100,8 @@ export async function createSessionToken(
     .setExpirationTime(`${SESSION_DURATION_DAYS}d`)
     .sign(getJwtSecret());
 
-  // Persist session record for revocation checks
   await db.session.create({
-    data: {
-      jti,
-      userId: payload.sub,
-      expiresAt,
-    },
+    data: { jti, userId: payload.sub, expiresAt },
   });
 
   return { token, jti };
@@ -72,10 +123,6 @@ export async function clearSessionCookie() {
   cookieStore.delete(SESSION_COOKIE);
 }
 
-/**
- * Revokes a session by JTI. Call on logout, user deactivation, and role changes.
- * Accepts an optional `userId` to revoke ALL sessions for that user.
- */
 export async function revokeSession(opts: { jti?: string; userId?: string }) {
   if (opts.userId) {
     await db.session.updateMany({
@@ -94,7 +141,7 @@ export async function revokeSession(opts: { jti?: string; userId?: string }) {
 
 /**
  * Cached per-request user lookup. The `cache()` wrapper ensures that multiple
- * API route handlers in the same request lifecycle share one DB round-trip.
+ * calls within the same request lifecycle share one DB round-trip.
  */
 export const getCurrentUser = cache(async () => {
   const cookieStore = await cookies();
@@ -107,7 +154,6 @@ export const getCurrentUser = cache(async () => {
     const jti = verified.payload.jti as string | undefined;
     if (!userId || !jti) return null;
 
-    // Revocation check — confirms the session hasn't been invalidated server-side
     const session = await db.session.findUnique({ where: { jti } });
     if (!session || session.revokedAt !== null) return null;
 

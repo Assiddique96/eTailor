@@ -176,7 +176,7 @@ export function MeasurementPanel({ customerId, gender, records, onSaved }: Props
                     />
                     <button
                       onClick={() => removeCustom(i)}
-                      className="p-1.5 rounded text-muted hover:text-danger transition-colors flex-shrink-0"
+                      className="p-1.5 rounded text-muted hover:text-danger transition-colors shrink-0"
                       aria-label={`Remove custom field ${i + 1}`}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -261,3 +261,6 @@ export function MeasurementPanel({ customerId, gender, records, onSaved }: Props
     </div>
   );
 }
+
+
+

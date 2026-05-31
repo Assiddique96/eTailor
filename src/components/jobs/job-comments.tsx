@@ -53,7 +53,7 @@ export function JobComments({ jobId }: { jobId: string }) {
         {comments.map((c) => (
           <div key={c.id} className="flex gap-3">
             <div
-              className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0"
+              className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium shrink-0"
               style={{ background: "var(--brand-light)", color: "var(--brand)" }}
               aria-hidden
             >
@@ -93,3 +93,6 @@ export function JobComments({ jobId }: { jobId: string }) {
     </div>
   );
 }
+
+
+

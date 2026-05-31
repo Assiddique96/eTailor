@@ -57,7 +57,7 @@ function SidebarContent({ user, pathname, onNavClick }: SidebarContentProps) {
         <div>
           <p className="text-sm font-semibold text-stone-100">eTailor</p>
           {user.shopName && (
-            <p className="text-xs text-stone-500 truncate max-w-[120px]">
+            <p className="text-xs text-stone-500 truncate max-w-30">
               {user.shopName}
             </p>
           )}
@@ -111,7 +111,7 @@ function SidebarContent({ user, pathname, onNavClick }: SidebarContentProps) {
       {/* User */}
       <div className="p-3">
         <div className="flex items-center gap-2.5 rounded-lg p-2">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-stone-700 text-xs font-medium text-stone-300">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-700 text-xs font-medium text-stone-300">
             {initials(user.fullName)}
           </div>
           <div className="min-w-0 flex-1">
@@ -156,7 +156,7 @@ export function PortalShell({ user, children }: PortalShellProps) {
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg-base)" }}>
       {/* Desktop sidebar */}
       <aside
-        className="hidden md:flex flex-col w-56 flex-shrink-0"
+        className="hidden md:flex flex-col w-56 shrink-0"
         style={{ background: "var(--bg-sidebar)" }}
       >
         <SidebarContent user={user} pathname={pathname} onNavClick={closeMobile} />
@@ -222,3 +222,7 @@ export function PortalShell({ user, children }: PortalShellProps) {
     </div>
   );
 }
+
+
+
+

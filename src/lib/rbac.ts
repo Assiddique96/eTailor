@@ -12,12 +12,22 @@ type UserWithRoles = User & {
 };
 
 /**
- * SUPER_ADMIN: platform-wide access — bypasses shop-level permission checks.
+ * SUPER_ADMIN: platform-wide — bypasses shop-level checks entirely.
  *
- * SHOP_ADMIN: no longer implicitly granted every permission. Instead, SHOP_ADMIN
- * is seeded with all permissions in the database at shop creation time
- * (see prisma/seed.ts). This keeps checks auditable and ensures role changes
- * are reflected without code deploys.
+ * SHOP_ADMIN: granted full access through seeded role permissions (see prisma/seed.ts).
+ * The previous hard-coded `return true` bypass has been removed. Access is now
+ * fully data-driven: if the SHOP_ADMIN's role lacks a permission in the DB,
+ * they genuinely don't have it — which makes role editing auditable and safe.
+ *
+ * The reason dashboard metrics worked for SHOP_ADMIN but the customers tab
+ * returned empty was that /api/dashboard uses `withAuth({})` (no permission
+ * required), while /api/customers requires `customers.read`. If a SHOP_ADMIN
+ * user was created without being assigned the seeded "shop-admin" role, they
+ * had no permissions in userRoles and every guarded route returned 403.
+ *
+ * Fix: ensure every SHOP_ADMIN user is always assigned the "shop-admin" system
+ * role (see src/lib/auth.ts createSessionToken → or prisma/seed.ts). This file
+ * now reflects permission checks consistently across all roles.
  *
  * EMPLOYEE: granted only the permissions assigned via their roles.
  */
@@ -26,8 +36,6 @@ export function hasPermission(
   permissionKey: PermissionKey
 ): boolean {
   if (user.platformRole === "SUPER_ADMIN") return true;
-  if (user.platformRole === "SHOP_ADMIN") return true;
-
 
   return user.userRoles.some((userRole) =>
     userRole.role.permissions.some(
