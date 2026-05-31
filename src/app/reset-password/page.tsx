@@ -154,7 +154,7 @@ export default function ResetPasswordPage() {
         <div>
           <Link href="/" className="flex items-center gap-2.5 mb-6">
             <div className="h-9 w-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">eT</div>
-            <span className="text-lg font-semibold">eTailor</span>
+            <span className="text-lg font-semibold">eTailo</span>
           </Link>
           <h1 className="text-2xl font-semibold tracking-tight">Set new password</h1>
           <p className="text-sm text-secondary mt-1">Choose a strong password for your account.</p>

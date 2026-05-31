@@ -38,7 +38,7 @@ export default function OGImage() {
           eT
         </div>
         <div style={{ fontSize: 64, fontWeight: 700, color: "#fafaf9", letterSpacing: -2 }}>
-          eTailor
+          eTailo
         </div>
         <div style={{ fontSize: 28, color: "#a8a29e", marginTop: 16 }}>
           Tailoring Management Platform

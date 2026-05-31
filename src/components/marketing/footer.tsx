@@ -25,7 +25,7 @@ export function MarketingFooter() {
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2.5 mb-3">
               <div className="h-8 w-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">eT</div>
-              <span className="font-semibold">eTailor</span>
+              <span className="font-semibold">eTailo</span>
             </div>
             <p className="text-sm text-secondary leading-relaxed max-w-xs">
               The all-in-one management platform built exclusively for tailoring businesses.
@@ -49,7 +49,7 @@ export function MarketingFooter() {
         </div>
 
         <div className="border-t pt-6 flex flex-col sm:flex-row items-center justify-between gap-3" style={{ borderColor: "var(--border)" }}>
-          <p className="text-xs text-muted">© {new Date().getFullYear()} eTailor. All rights reserved.</p>
+          <p className="text-xs text-muted">© {new Date().getFullYear()} eTailo. All rights reserved.</p>
           <p className="text-xs text-muted">Built for tailors, by people who care about craft.</p>
         </div>
       </div>

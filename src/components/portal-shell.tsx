@@ -55,7 +55,7 @@ function SidebarContent({ user, pathname, onNavClick }: SidebarContentProps) {
           eT
         </div>
         <div>
-          <p className="text-sm font-semibold text-stone-100">eTailor</p>
+          <p className="text-sm font-semibold text-stone-100">eTailo</p>
           {user.shopName && (
             <p className="text-xs text-stone-500 truncate max-w-30">
               {user.shopName}
@@ -208,7 +208,7 @@ export function PortalShell({ user, children }: PortalShellProps) {
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <span className="text-sm font-semibold">eTailor</span>
+          <span className="text-sm font-semibold">eTailo</span>
           <div className="w-8" />
         </header>
 

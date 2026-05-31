@@ -33,8 +33,8 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "eTailor — Tailoring Management Platform",
-    template: "%s · eTailor",
+    default: "eTailo — Tailoring Management Platform",
+    template: "%s · eTailo",
   },
   description: "Manage customers, jobs, billing, and team operations for your tailoring shop.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),

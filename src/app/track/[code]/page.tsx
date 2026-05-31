@@ -45,7 +45,7 @@ export default function TrackingDetailPage({ params }: { params: Promise<{ code:
         <div className="mx-auto max-w-2xl px-5 py-3.5 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">eT</div>
-            <span className="font-semibold">eTailor</span>
+            <span className="font-semibold">eTailo</span>
           </Link>
           <Link href="/track" className="btn btn-ghost btn-sm">
             ← Track another
@@ -269,7 +269,7 @@ export default function TrackingDetailPage({ params }: { params: Promise<{ code:
       </div>
 
       <footer className="border-t py-5 text-center text-xs text-muted" style={{ borderColor: "var(--border)" }}>
-        © {new Date().getFullYear()} eTailor · Order Tracking
+        © {new Date().getFullYear()} eTailo · Order Tracking
       </footer>
     </div>
   );

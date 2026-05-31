@@ -21,7 +21,7 @@ export function MarketingNav() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5">
           <div className="h-8 w-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm select-none">eT</div>
-          <span className="font-semibold text-base">eTailor</span>
+          <span className="font-semibold text-base">eTailo</span>
         </Link>
 
         {/* Desktop nav */}

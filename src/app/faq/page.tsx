@@ -6,15 +6,28 @@ import { MarketingFooter } from "@/components/marketing/footer";
 
 const FAQS = [
   {
+    category: "Introduction",
+    items: [
+      {
+        q: "What is eTailo?",
+        a: "eTailo is a digital tailoring management system designed for local tailors, boutiques, and stitching centers. It helps you replace paper registers with a secure, organized digital system to manage customers, measurements, orders, payments, and catalog photos efficiently.",
+      },
+      {
+        q: "Who is eTailo for?",
+        a: "eTailo is for: Local tailors and individual seamstresses, Boutique tailoring shops, Multi-tailor workshops, Stitching centers with multiple workers, and anyone looking to digitize their tailoring business.",
+      },
+    ],
+  },
+  {
     category: "Getting Started",
     items: [
       {
-        q: "How do I get started with eTailor?",
+        q: "How do I get started with eTailo?",
         a: "Simply click 'Get started free' and register your shop in under a minute. No credit card required. You'll be taken straight to your dashboard where you can start adding customers and jobs immediately.",
       },
       {
-        q: "Do I need any technical knowledge to use eTailor?",
-        a: "Not at all. eTailor is designed to be intuitive for non-technical users. If you can use WhatsApp, you can use eTailor. We also offer onboarding support if you ever need help.",
+        q: "Do I need any technical knowledge to use eTailo?",
+        a: "No. e-Tailo is designed for users with minimal technical knowledge. The interface is intuitive, and the system guides you through customer entry, measurement recording, order tracking, and catalog uploads.",
       },
       {
         q: "Can I import my existing customer data?",
@@ -22,7 +35,7 @@ const FAQS = [
       },
       {
         q: "Is there a mobile app?",
-        a: "A mobile app is currently in development and will be available soon for both iOS and Android. In the meantime, eTailor is fully responsive and works beautifully on any mobile browser.",
+        a: "A mobile app is currently in development and will be available soon for both iOS and Android. In the meantime, eTailo is fully responsive and works beautifully on any mobile browser.",
       },
     ],
   },
@@ -35,7 +48,7 @@ const FAQS = [
       },
       {
         q: "Can I send real emails to customers?",
-        a: "Yes. eTailor integrates with Resend to send real emails. When you log a message with the Email channel, the customer receives a professionally formatted email instantly. You can also send job reminders automatically.",
+        a: "Yes. eTailo integrates with Resend to send real emails. When you log a message with the Email channel, the customer receives a professionally formatted email instantly. You can also send job reminders automatically.",
       },
       {
         q: "How do invoice numbers work?",
@@ -46,8 +59,8 @@ const FAQS = [
         a: "Yes. You can record multiple payments against a single invoice. The invoice status automatically updates to Partial or Paid based on the total amount collected.",
       },
       {
-        q: "What measurement units does eTailor support?",
-        a: "Currently eTailor stores measurements in centimetres. Imperial (inches) support is on our roadmap and will be added in a future update.",
+        q: "What measurement units does eTailo support?",
+        a: "Currently eTailo stores measurements in centimetres. Imperial (inches) support is on our roadmap and will be added in a future update.",
       },
     ],
   },
@@ -72,7 +85,7 @@ const FAQS = [
     category: "Billing & Plans",
     items: [
       {
-        q: "Is eTailor really free to start?",
+        q: "Is eTailo really free to start?",
         a: "Yes. The Starter plan is completely free with no credit card required. It includes up to 50 customers, unlimited jobs, and basic invoicing.",
       },
       {
@@ -147,7 +160,7 @@ export default function FaqPage() {
       <section className="mx-auto max-w-3xl px-5 pt-16 pb-10 text-center">
         <p className="text-xs font-semibold uppercase tracking-widest text-brand mb-3">FAQ</p>
         <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight mb-4">Frequently asked questions</h1>
-        <p className="text-secondary text-lg">Everything you need to know about eTailor. Can't find the answer? <Link href="/contact" className="text-brand hover:underline">Contact us.</Link></p>
+        <p className="text-secondary text-lg">Everything you need to know about eTailo. Can't find the answer? <Link href="/contact" className="text-brand hover:underline">Contact us.</Link></p>
       </section>
 
       <div className="mx-auto max-w-6xl px-5 pb-16">

@@ -8,7 +8,7 @@ export default function RegisterPage() {
         <div>
           <div className="flex items-center gap-2.5 mb-6">
             <div className="h-9 w-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">eT</div>
-            <span className="text-lg font-semibold">eTailor</span>
+            <span className="text-lg font-semibold">eTailo</span>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Create your shop</h1>
           <p className="text-sm text-secondary mt-1">Set up your tailoring workspace in seconds.</p>
