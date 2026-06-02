@@ -1,8 +1,9 @@
+"use client";
+
 import { useState } from "react";
 import Link from "next/link";
 import { MarketingNav } from "@/components/marketing/nav";
 import { MarketingFooter } from "@/components/marketing/footer";
-
 export default function PrivacyPage() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
