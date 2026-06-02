@@ -28,6 +28,7 @@ export const GET = withAuth({ permission: "jobs.read" }, async ({ request, user 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
   const customerId = searchParams.get("customerId");
+  const unbilled = searchParams.get("unbilled");
   const q = searchParams.get("q")?.trim();
   const cursor = searchParams.get("cursor") ?? undefined;
   const limit  = Math.min(100, Math.max(1, Number(searchParams.get("limit") || 50)));
@@ -37,6 +38,11 @@ export const GET = withAuth({ permission: "jobs.read" }, async ({ request, user 
     ...(status ? { status: status as never } : {}),
     ...(customerId ? { customerId } : {}),
   };
+
+  if (unbilled === "true") {
+    // Only jobs that don't have an invoice associated
+    where.invoice = { is: null };
+  }
 
   if (q) {
     where.OR = [
@@ -54,6 +60,7 @@ export const GET = withAuth({ permission: "jobs.read" }, async ({ request, user 
       assignedTo: { select: { id: true, fullName: true } },
       materials:  true,
       tasks:      true,
+      invoice:    true,
       _count:     { select: { comments: true } },
     },
     orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],

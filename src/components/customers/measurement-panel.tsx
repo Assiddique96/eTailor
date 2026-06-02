@@ -7,6 +7,7 @@ import { getFieldsForGender, type Gender } from "@/lib/measurement-fields";
 type CustomField = { label: string; valueCm: string };
 type MeasurementRecord = {
   id: string; recordedAt: string; recordedBy?: string | null;
+  extraJson?: { customFields?: Array<{ label: string; valueCm: number }>; comment?: string } | null;
   [key: string]: unknown;
 };
 
@@ -23,6 +24,7 @@ export function MeasurementPanel({ customerId, gender, records, onSaved }: Props
   const [values, setValues]           = useState<Record<string, string>>({});
   const [activeField, setActiveField] = useState<string | null>(null);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [comment, setComment]           = useState<string>("");
 
   const fields = getFieldsForGender(gender ?? "OTHER");
   const genderLabel = gender === "MALE" ? "Men's" : gender === "FEMALE" ? "Women's" : "General";
@@ -63,12 +65,14 @@ export function MeasurementPanel({ customerId, gender, records, onSaved }: Props
                 valueCm: Number(c.valueCm),
               })) }
             : {}),
+          ...(comment.trim() ? { comment: comment.trim() } : {}),
         }),
       });
       if (!res.ok) { toast("Failed to save measurements.", "error"); return; }
       toast("Measurements saved.");
       setValues({});
       setCustomFields([]);
+      setComment("");
       setActiveField(null);
       onSaved();
     } catch {
@@ -190,14 +194,25 @@ export function MeasurementPanel({ customerId, gender, records, onSaved }: Props
               </div>
             </div>
 
-            <div className="flex justify-end pt-1">
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={handleSave}
-                disabled={submitting}
-              >
-                {submitting ? "Saving…" : "Save measurements"}
-              </button>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-medium text-secondary">Notes / comment</label>
+                <textarea
+                  className="field min-h-[6rem]"
+                  placeholder="Add any extra details about this measurement set..."
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end pt-1">
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleSave}
+                  disabled={submitting}
+                >
+                  {submitting ? "Saving…" : "Save measurements"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -209,7 +224,9 @@ export function MeasurementPanel({ customerId, gender, records, onSaved }: Props
       ) : (
         <div className="space-y-3">
           {records.map((m) => {
-            const customData = (m.extraJson as { customFields?: Array<{ label: string; valueCm: number }> } | null)?.customFields ?? [];
+            const extraData = m.extraJson as { customFields?: Array<{ label: string; valueCm: number }>; comment?: string } | null;
+  const customData = extraData?.customFields ?? [];
+  const measurementComment = extraData?.comment?.trim() ?? "";
             return (
               <div key={m.id} className="card p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -240,6 +257,12 @@ export function MeasurementPanel({ customerId, gender, records, onSaved }: Props
                 </div>
 
                 {/* Custom fields */}
+                {measurementComment && (
+                  <div className="mt-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+                    <p className="text-xs text-muted mb-2 font-medium">Notes</p>
+                    <p className="text-sm text-secondary">{measurementComment}</p>
+                  </div>
+                )}
                 {customData.length > 0 && (
                   <div className="mt-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
                     <p className="text-xs text-muted mb-2 font-medium">Custom</p>

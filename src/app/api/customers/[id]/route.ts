@@ -10,11 +10,34 @@ export function GET(
 ) {
   return withAuth({ permission: "customers.read" }, async ({ user }) => {
     const { id } = await context.params;
+
     const customer = await db.customer.findFirst({
       where: { id, shopId: user.shopId! },
       include: {
         measurements: { orderBy: { recordedAt: "desc" } },
-        jobs: { orderBy: { createdAt: "desc" } },
+        jobs: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            tasks: {
+              select: {
+                id: true,
+                garmentType: true,
+                description: true,
+                selectionMode: true,
+                uploadedImageUrl: true,
+                materialNotes: true,
+                catalogItem: {
+                  select: {
+                    id: true,
+                    name: true,
+                    imageUrl: true,
+                    category: { select: { name: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
         invoices: { orderBy: { createdAt: "desc" } },
         messages: { orderBy: { sentAt: "desc" } },
         measurementLinks: {
@@ -22,8 +45,21 @@ export function GET(
           orderBy: { createdAt: "desc" },
           take: 5,
         },
+        styleProfile: {
+          include: {
+            catalogItem: {
+              select: {
+                id: true,
+                name: true,
+                imageUrl: true,
+                category: { select: { name: true } },
+              },
+            },
+          },
+        },
       },
     });
+
     if (!customer) throw new ApiError("Customer not found.", 404);
     return NextResponse.json({ customer });
   })(request);

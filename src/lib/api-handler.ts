@@ -71,7 +71,9 @@ export function withAuth(
     } catch (error) {
       // Zod validation errors bubble up from the handler
       if (error instanceof z.ZodError) {
-        return NextResponse.json({ error: error.flatten() }, { status: 400 });
+        const flat = error.flatten();
+        const msg = flat.formErrors?.[0] ?? Object.values(flat.fieldErrors ?? {}).flat()[0] ?? "Invalid input.";
+        return NextResponse.json({ error: msg }, { status: 400 });
       }
       // Named domain errors (e.g. "NOT_FOUND")
       if (error instanceof ApiError) {

@@ -52,7 +52,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.flatten().fieldErrors }, { status: 400 });
+      const flat = error.flatten();
+      const msg = flat.formErrors?.[0] ?? Object.values(flat.fieldErrors ?? {}).flat()[0] ?? "Invalid input.";
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
     console.error("Reset password error:", error);
     return NextResponse.json({ error: "Failed to reset password." }, { status: 500 });

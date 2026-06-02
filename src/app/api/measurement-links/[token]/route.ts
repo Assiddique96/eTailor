@@ -49,6 +49,7 @@ const measurementSchema = z.object({
   ...Object.fromEntries(
     ALL_FIELD_NAMES.map((name) => [name, z.number().nonnegative().optional()])
   ),
+  comment: z.string().max(500).optional(),
   customFields: z.array(customFieldSchema).max(20).optional(),
 });
 
@@ -76,17 +77,20 @@ export async function POST(
 
   const body = measurementSchema.parse(await request.json());
 
-  // Separate custom fields from standard measurement fields
-  const { customFields, ...standardFields } = body;
+  // Separate custom fields and comment from standard measurement fields
+  const { customFields, comment, ...standardFields } = body;
 
-  // Filter standard fields to only those with a value
+  // Filter standard fields to only those with a numeric value
   const measurementData = Object.fromEntries(
-    Object.entries(standardFields).filter(([, v]) => v !== undefined && (v as number) > 0)
+    Object.entries(standardFields).filter(([, v]) => typeof v === "number" && v > 0)
   );
 
   const extraJson =
-    customFields && customFields.length > 0
-      ? { customFields }
+    (customFields && customFields.length > 0) || comment
+      ? {
+          ...(customFields && customFields.length > 0 ? { customFields } : {}),
+          ...(comment ? { comment } : {}),
+        }
       : undefined;
 
   const [measurement] = await db.$transaction([

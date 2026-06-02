@@ -30,7 +30,23 @@ type CustomerDetails = {
   preferredStyle?: string;
   notes?: string;
   measurements: Array<{ id: string; recordedAt: string; recordedBy?: string | null; [key: string]: unknown }>;
-  jobs: Array<{ id: string; title: string; status: string; dueDate: string; trackingCode?: string | null; priority?: string | null }>;
+  jobs: Array<{
+    id: string;
+    title: string;
+    status: string;
+    dueDate: string;
+    trackingCode?: string | null;
+    priority?: string | null;
+    tasks: Array<{
+      id: string;
+      garmentType: string;
+      description?: string | null;
+      selectionMode?: string | null;
+      uploadedImageUrl?: string | null;
+      materialNotes?: string | null;
+      catalogItem?: { id: string; name: string; imageUrl: string; category: { name: string } } | null;
+    }>;
+  }>;
   invoices: Array<{
     id: string;
     invoiceNumber: string;
@@ -43,8 +59,15 @@ type CustomerDetails = {
   }>;
   measurementLinks: MeasurementLink[];
   shopId?: string;
-  styleProfile?: { selectionMode: string | null } | null;
+  styleProfile?: {
+    selectionMode: string | null;
+    catalogItem?: { id: string; name: string; imageUrl: string; category: { name: string } } | null;
+    uploadedImageUrl?: string | null;
+    notes?: string | null;
+  } | null;
 };
+
+type CustomerJob = CustomerDetails["jobs"][number];
 
 const GENDER_LABEL: Record<string, string> = { MALE: "Male", FEMALE: "Female", OTHER: "Other" };
 
@@ -65,9 +88,11 @@ export default function CustomerDetailPage({
   if (isLoading) return <div className="space-y-4"><TableSkeleton rows={4} /></div>;
   if (!customer) return <p className="text-secondary">Customer not found.</p>;
 
+  const styleTabCount = customer.jobs.length + (customer.styleProfile?.selectionMode ? 1 : 0);
+
   const TABS = [
     { id: "measurements", label: "Measurements", count: customer.measurements.length },
-    { id: "styles",       label: "Style",        count: customer.styleProfile ? 1 : 0 },
+    { id: "styles",       label: "Style",        count: styleTabCount },
     { id: "jobs",         label: "Jobs",         count: customer.jobs.length },
     { id: "invoices",     label: "Invoices",     count: customer.invoices.length },
   ] as const;
@@ -97,7 +122,7 @@ function CustomerDetailView({
   const [jobSearch, setJobSearch] = useState("");
   const [showCreateJob, setShowCreateJob] = useState(false);
   const [showCreateInvoice, setShowCreateInvoice] = useState(false);
-  
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
 
   const activeLinks = customer.measurementLinks.filter((l) => l.active);
 
@@ -113,6 +138,47 @@ function CustomerDetailView({
     acc[j.id] = j.title;
     return acc;
   }, {} as Record<string, string>);
+
+  const selectedJob = editingJobId ? customer.jobs.find((job) => job.id === editingJobId) ?? null : null;
+  const selectedJobStyleSummary = selectedJob ? getJobStyleSummary(selectedJob) : null;
+  const selectedJobStyleNotes = selectedJob
+    ? Array.from(
+        new Set(
+          selectedJob.tasks
+            .filter((task) => task.selectionMode && task.materialNotes)
+            .map((task) => task.materialNotes?.trim() ?? "")
+            .filter(Boolean)
+        )
+      )
+    : [];
+
+  function formatTaskStyle(task: {
+    garmentType: string;
+    selectionMode?: string | null;
+    catalogItem?: { name: string; category: { name: string } } | null;
+    uploadedImageUrl?: string | null;
+  }) {
+    if (!task.selectionMode) return "No style selected";
+    if (task.selectionMode === "CATALOG") {
+      return task.catalogItem ? `${task.garmentType}: Catalog – ${task.catalogItem.name}` : `${task.garmentType}: Catalog`;
+    }
+    if (task.selectionMode === "UPLOAD") {
+      return `${task.garmentType}: Upload`;
+    }
+    if (task.selectionMode === "IMPRESS_ME") {
+      return `${task.garmentType}: Impress me`;
+    }
+    return `${task.garmentType}: ${task.selectionMode}`;
+  }
+
+  function getJobStyleSummary(job: typeof customer.jobs[number]) {
+    const selectedStyles = job.tasks
+      .filter((task) => !!task.selectionMode)
+      .map(formatTaskStyle);
+    if (selectedStyles.length === 0) return "No style selected";
+    const uniqueStyles = Array.from(new Set(selectedStyles));
+    return uniqueStyles.join("; ");
+  }
 
   return (
     <div className="space-y-5">
@@ -237,7 +303,102 @@ function CustomerDetailView({
 
       {/* ── Styles tab ── */}
       {activeTab === "styles" && (
-        <StylePanel customerId={customer.id} shopId={customer.shopId ?? ""} />
+        <div className="space-y-4">
+          <StylePanel customerId={customer.id} shopId={customer.shopId ?? ""} />
+
+          <div className="card overflow-hidden">
+            <div className="px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+              <h2 className="text-sm font-semibold">Job style preferences</h2>
+              <p className="text-sm text-secondary">Click a job row to view or edit style details.</p>
+            </div>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>S/N</th>
+                  <th>Title</th>
+                  <th>Tracking ID</th>
+                  <th>Status</th>
+                  <th>Selected style</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {customer.jobs.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center text-secondary py-8 text-sm">
+                      No jobs for this customer.
+                    </td>
+                  </tr>
+                ) : (
+                  customer.jobs.map((job, index) => (
+                    <tr
+                      key={job.id}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") setEditingJobId(job.id);
+                      }}
+                      onClick={() => setEditingJobId(job.id)}
+                      className="cursor-pointer hover:bg-slate-50"
+                    >
+                      <td className="text-xs text-secondary">{index + 1}</td>
+                      <td className="font-medium">{job.title}</td>
+                      <td className="text-xs text-secondary">{job.trackingCode ?? "—"}</td>
+                      <td><StatusBadge status={job.status} /></td>
+                      <td className="text-secondary text-sm">{getJobStyleSummary(job)}</td>
+                      <td className="text-secondary text-sm">{job.dueDate ? new Date(job.dueDate).toLocaleDateString() : "—"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {editingJobId && selectedJob && (
+            <Modal
+              open
+              onClose={() => setEditingJobId(null)}
+              title={`Style details · ${selectedJob.title}`}
+              footer={null}
+            >
+              <div className="space-y-4">
+                <div className="rounded-xl border border-slate-200 p-4">
+                  <p className="text-sm font-semibold">Job</p>
+                  <p className="text-base font-medium">{selectedJob.title}</p>
+                  <p className="text-xs text-secondary mt-1">Tracking ID {selectedJob.trackingCode ?? "—"} · {selectedJob.status}</p>
+                </div>
+                {selectedJobStyleSummary && selectedJobStyleSummary !== "No style selected" && (
+                  <div className="rounded-xl border border-slate-200 p-4">
+                    <p className="text-xs uppercase tracking-wide text-secondary mb-2">Selected style</p>
+                    <p className="font-medium">{selectedJobStyleSummary}</p>
+                  </div>
+                )}
+                {selectedJobStyleNotes.length > 0 && (
+                  <div className="rounded-xl border border-slate-200 p-4">
+                    <p className="text-xs uppercase tracking-wide text-secondary mb-2">Notes / special requests</p>
+                    {selectedJobStyleNotes.length === 1 ? (
+                      <p className="text-sm text-secondary">{selectedJobStyleNotes[0]}</p>
+                    ) : (
+                      <ul className="list-disc pl-4 space-y-1 text-sm text-secondary">
+                        {selectedJobStyleNotes.map((note, index) => (
+                          <li key={index}>{note}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+                <StylePanel
+                  jobId={editingJobId}
+                  shopId={customer.shopId ?? ""}
+                  onSaved={() => {
+                    onMutate();
+                    setEditingJobId(null);
+                  }}
+                />
+              </div>
+            </Modal>
+          )}
+        </div>
       )}
 
       {/* ── Jobs tab ── */}

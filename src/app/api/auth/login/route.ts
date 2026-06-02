@@ -64,7 +64,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.flatten() }, { status: 400 });
+      const flat = error.flatten();
+      const msg = flat.formErrors?.[0] ?? Object.values(flat.fieldErrors ?? {}).flat()[0] ?? "Invalid input.";
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
     console.error("[LOGIN_ERROR]", error); // surfaces the real cause
     return NextResponse.json({ error: "Failed to login." }, { status: 500 });

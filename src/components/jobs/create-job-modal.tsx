@@ -67,6 +67,14 @@ export function CreateJobModal({ open, onClose, customers, onCreated, defaultCus
           priority:      Number(fields.priority),
           depositAmount: fields.depositAmount ? Number(fields.depositAmount) : undefined,
           depositPaid:   fields.depositPaid,
+          // Ensure at least one task is sent so backend validation passes.
+          tasks: [
+            {
+              garmentType: fields.title ? fields.title : "General",
+              description: fields.description || undefined,
+              quantity: 1,
+            },
+          ],
         }),
       });
       if (!res.ok) {

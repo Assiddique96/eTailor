@@ -18,12 +18,11 @@ export default function InvoiceForm({
   isLoading = false,
 }: InvoiceFormProps) {
   const { data: jobsData } = useSWR<{ jobs: any[] }>(
-    `/api/jobs?customerId=${customerId}`,
+    `/api/jobs?customerId=${customerId}&unbilled=true`,
     fetcher
   );
 
   const [selectedJobId, setSelectedJobId] = useState('');
-  const [subtotal, setSubtotal] = useState('');
   const [discount, setDiscount] = useState('0');
   const [tax, setTax] = useState('0');
   const [dueDate, setDueDate] = useState('');
@@ -40,41 +39,40 @@ export default function InvoiceForm({
         description: `${task.garmentType}${task.description ? ` - ${task.description}` : ''}`,
         quantity: task.quantity,
         unitPrice: task.unitPrice || 0,
-        amount: (task.unitPrice || 0) * task.quantity,
       }));
       setLineItems(items);
-      setSubtotal(
-        items
-          .reduce((sum: number, item: any) => sum + item.amount, 0)
-          .toFixed(2)
-      );
+    } else {
+      setLineItems([]);
     }
   }, [selectedJob]);
 
+  // Line item helpers (editable, similar to billing create modal)
+  function updateLine(i: number, field: string, value: string | number) {
+    setLineItems((prev) => prev.map((l, idx) => (idx === i ? { ...l, [field]: value } : l)));
+  }
+  function addLine() { setLineItems((l) => [...l, { description: '', quantity: 1, unitPrice: 0 }]); }
+  function removeLine(i: number) { if (lineItems.length === 1) return; setLineItems((l) => l.filter((_, idx) => idx !== i)); }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const total =
-      (parseFloat(subtotal) || 0) -
-      (parseFloat(discount) || 0) +
-      (parseFloat(tax) || 0);
+    const computedSubtotal = lineItems.reduce((s: number, item: any) => s + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
+    const total = computedSubtotal - (parseFloat(discount) || 0) + (parseFloat(tax) || 0);
 
     const invoiceData = {
       customerId,
-      jobId: selectedJobId,
-      subtotal: parseFloat(subtotal) || 0,
+      jobId: selectedJobId || undefined,
+      subtotal: computedSubtotal,
       discount: parseFloat(discount) || 0,
       tax: parseFloat(tax) || 0,
       total,
-      dueAt: dueDate ? new Date(dueDate) : null,
+      dueAt: dueDate ? new Date(dueDate) : undefined,
       notes,
-      lineItems,
+      lineItems: lineItems.map((l) => ({ description: l.description, quantity: Number(l.quantity) || 1, unitPrice: Number(l.unitPrice) || 0 })),
     };
 
     try {
       await onSubmit(invoiceData);
       setSelectedJobId('');
-      setSubtotal('');
       setDiscount('0');
       setTax('0');
       setDueDate('');
@@ -85,16 +83,11 @@ export default function InvoiceForm({
     }
   };
 
-  const unpaidJobs = jobs.filter(
-    (j: any) =>
-      j.invoice?.paymentStatus !== 'PAID' &&
-      j.invoice?.paymentStatus !== 'PARTIAL'
-  );
+  // Since we requested unbilled jobs from the API, jobs list should only contain candidates
+  const candidates = jobs;
 
-  const total =
-    (parseFloat(subtotal) || 0) -
-    (parseFloat(discount) || 0) +
-    (parseFloat(tax) || 0);
+  const subtotal = lineItems.reduce((s: number, l: any) => s + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0), 0);
+  const total = Math.max(0, subtotal - (parseFloat(discount) || 0)) + (parseFloat(tax) || 0);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -102,9 +95,9 @@ export default function InvoiceForm({
 
       <div>
         <label className="block text-sm font-medium mb-2">Select Job</label>
-        {unpaidJobs.length === 0 ? (
+        {candidates.length === 0 ? (
           <p className="text-secondary text-sm p-3 rounded" style={{ background: 'var(--bg-base)' }}>
-            No unpaid jobs available for this customer.
+            No unbilled jobs available for this customer.
           </p>
         ) : (
           <select
@@ -114,44 +107,48 @@ export default function InvoiceForm({
             required
           >
             <option value="">-- Select a job --</option>
-            {unpaidJobs.map((job: any) => (
+            {candidates.map((job: any) => (
               <option key={job.id} value={job.id}>
-                {job.title} ({job.tasks.length} task
-                {job.tasks.length !== 1 ? 's' : ''})
+                {job.title} ({job.tasks.length} task{job.tasks.length !== 1 ? 's' : ''})
               </option>
             ))}
           </select>
         )}
       </div>
 
+      {/* Line Items */}
       {selectedJob && (
         <>
-          {/* Line Items */}
           <div className="space-y-3">
-            <h4 className="font-medium">Line Items</h4>
-            <div className="rounded-lg overflow-hidden" style={{ borderColor: 'var(--border)', border: '1px solid var(--border)' }}>
-              <table className="w-full text-sm">
-                <thead style={{ background: 'var(--bg-base)' }}>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    <th className="text-left p-3">Description</th>
-                    <th className="text-right p-3">Qty</th>
-                    <th className="text-right p-3">Price</th>
-                    <th className="text-right p-3">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lineItems.map((item, idx) => (
-                    <tr key={idx} style={{ borderBottom: idx < lineItems.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                      <td className="p-3">{item.description}</td>
-                      <td className="text-right p-3">{item.quantity}</td>
-                      <td className="text-right p-3">₦{item.unitPrice.toFixed(2)}</td>
-                      <td className="text-right p-3 font-medium">
-                        ₦{item.amount.toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">Line Items</h4>
+              <button className="text-xs text-brand hover:underline" type="button" onClick={addLine}>+ Add line</button>
+            </div>
+
+            <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: '1fr 60px 90px 28px' }}>
+              <p className="text-xs text-muted">Description</p>
+              <p className="text-xs text-muted text-center">Qty</p>
+              <p className="text-xs text-muted text-right">Unit price (₦)</p>
+              <span />
+            </div>
+
+            <div className="space-y-1.5">
+              {lineItems.map((line, i) => (
+                <div key={i} className="grid gap-1 items-center" style={{ gridTemplateColumns: '1fr 60px 90px 28px' }}>
+                  <input className="field text-sm" placeholder="Description" value={line.description}
+                    onChange={(e) => updateLine(i, 'description', e.target.value)} />
+                  <input type="number" min="0.01" step="0.01" className="field text-sm text-center" value={String(line.quantity)}
+                    onChange={(e) => updateLine(i, 'quantity', Number(e.target.value))} />
+                  <input type="number" min="0" step="0.01" className="field text-sm text-right" placeholder="0.00" value={String(line.unitPrice)}
+                    onChange={(e) => updateLine(i, 'unitPrice', Number(e.target.value))} />
+                  <button type="button" onClick={() => removeLine(i)} disabled={lineItems.length === 1}
+                    className="flex items-center justify-center rounded p-1 text-muted hover:text-danger transition-colors disabled:opacity-30" aria-label={`Remove line ${i + 1}`}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -163,8 +160,7 @@ export default function InvoiceForm({
                 <input
                   type="number"
                   step="0.01"
-                  value={subtotal}
-                  onChange={(e) => setSubtotal(e.target.value)}
+                  value={subtotal.toFixed(2)}
                   readOnly
                   className="field"
                   style={{ background: 'var(--bg-base)' }}
@@ -234,7 +230,7 @@ export default function InvoiceForm({
         <button
           type="submit"
           className="btn btn-primary btn-sm"
-          disabled={isLoading || !selectedJobId || unpaidJobs.length === 0}
+          disabled={isLoading || !selectedJobId || candidates.length === 0}
         >
           {isLoading ? 'Creating...' : 'Create Invoice'}
         </button>

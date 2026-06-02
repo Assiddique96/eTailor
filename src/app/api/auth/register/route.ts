@@ -35,7 +35,9 @@ export async function POST(request: Request) {
     const result = bodySchema.safeParse(json);
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error.flatten() }, { status: 400 });
+      const flat = result.error.flatten();
+      const msg = flat.formErrors?.[0] ?? Object.values(flat.fieldErrors ?? {}).flat()[0] ?? "Invalid input.";
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
 
     const body = result.data;

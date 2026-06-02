@@ -33,6 +33,7 @@ type Props = {
     uploadedImagePath?: string | null;
     notes?: string | null;
   }) => void;
+  onSaved?: () => void;
 };
 
 const MODES = [
@@ -56,7 +57,7 @@ const MODES = [
   },
 ] as const;
 
-export function StylePanel({ customerId, jobId, shopId, persistable = true, onChange }: Props) {
+export function StylePanel({ customerId, jobId, shopId, persistable = true, onChange, onSaved }: Props) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [gender, setGender] = useState<string | null>(null);
@@ -158,6 +159,7 @@ export function StylePanel({ customerId, jobId, shopId, persistable = true, onCh
       if (!res.ok) { toast("Failed to save style.", "error"); return; }
       toast("Style preference saved.");
       mutateProfile();
+      if (typeof onSaved === "function") onSaved();
     } catch {
       toast("Network error.", "error");
     } finally {

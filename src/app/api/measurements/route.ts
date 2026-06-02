@@ -20,6 +20,7 @@ const addMeasurementSchema = z.object({
   neckCm:       z.number().nonnegative().optional(),
   inseamCm:     z.number().nonnegative().optional(),
   outseamCm:    z.number().nonnegative().optional(),
+  comment:      z.string().max(500).optional(),
   // Custom fields go into extraJson as an array of {label, valueCm} objects
   customFields: z.array(customFieldSchema).max(20).optional(),
 });
@@ -33,10 +34,13 @@ export const POST = withAuth({ permission: "measurements.write" }, async ({ requ
   });
   if (!customer) throw new ApiError("Customer not found.", 404);
 
-  // Merge custom fields into extraJson
+  // Merge custom fields and comment into extraJson
   const extraJson: Prisma.InputJsonValue | undefined =
-    body.customFields && body.customFields.length > 0
-      ? { customFields: body.customFields }
+    (body.customFields && body.customFields.length > 0) || body.comment
+      ? {
+          ...(body.customFields && body.customFields.length > 0 ? { customFields: body.customFields } : {}),
+          ...(body.comment ? { comment: body.comment } : {}),
+        }
       : undefined;
 
   const measurement = await db.measurementRecord.create({
