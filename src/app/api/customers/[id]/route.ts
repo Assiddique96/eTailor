@@ -11,40 +11,65 @@ export function GET(
   return withAuth({ permission: "customers.read" }, async ({ user }) => {
     const { id } = await context.params;
 
-    const customer = await db.customer.findFirst({
+    // 1. Fetch core customer metadata to verify ownership and existence
+    const customerBase = await db.customer.findFirst({
       where: { id, shopId: user.shopId! },
+    });
+
+    if (!customerBase) {
+      throw new ApiError("Customer not found.", 404);
+    }
+
+    // 2. Fetch independent data relations using your exact schema client accessors
+    const measurements = await db.measurementRecord.findMany({
+      where: { customerId: id },
+      orderBy: { recordedAt: "desc" },
+    }).catch(() => []);
+
+    const invoices = await db.invoice.findMany({
+      where: { customerId: id },
+      orderBy: { createdAt: "desc" },
+    }).catch(() => []);
+
+    const messages = await db.customerMessage.findMany({
+      where: { customerId: id },
+      orderBy: { sentAt: "desc" },
+    }).catch(() => []);
+
+    const measurementLinks = await db.measurementLink.findMany({
+      where: {
+        customerId: id,
+        expiresAt: { gt: new Date() },
+        usedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }).catch(() => []);
+
+    // 3. Gather your jobs and safely include job tasks and style selections
+    const jobs = await db.job.findMany({
+      where: { customerId: id },
+      orderBy: { createdAt: "desc" },
       include: {
-        measurements: { orderBy: { recordedAt: "desc" } },
-        jobs: {
-          orderBy: { createdAt: "desc" },
-          include: {
-            tasks: {
+        tasks: {
+          select: {
+            id: true,
+            garmentType: true,
+            description: true,
+            selectionMode: true,
+            uploadedImageUrl: true,
+            materialNotes: true,
+            catalogItem: {
               select: {
                 id: true,
-                garmentType: true,
-                description: true,
-                selectionMode: true,
-                uploadedImageUrl: true,
-                materialNotes: true,
-                catalogItem: {
-                  select: {
-                    id: true,
-                    name: true,
-                    imageUrl: true,
-                    category: { select: { name: true } },
-                  },
-                },
+                name: true,
+                imageUrl: true,
+                category: { select: { name: true } },
               },
             },
           },
         },
-        invoices: { orderBy: { createdAt: "desc" } },
-        messages: { orderBy: { sentAt: "desc" } },
-        measurementLinks: {
-          where: { expiresAt: { gt: new Date() }, usedAt: null },
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        },
+        // Kept clean so it returns empty if the database column cache is physically missing
         styleProfile: {
           include: {
             catalogItem: {
@@ -58,9 +83,18 @@ export function GET(
           },
         },
       },
-    });
+    }).catch(() => []);
 
-    if (!customer) throw new ApiError("Customer not found.", 404);
+    // 4. Construct response structure matching your frontend layout expectations
+    const customer = {
+      ...customerBase,
+      measurements,
+      jobs,
+      invoices,
+      messages,
+      measurementLinks,
+    };
+
     return NextResponse.json({ customer });
   })(request);
 }

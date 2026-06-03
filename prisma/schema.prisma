@@ -163,7 +163,7 @@ model RolePermission {
 }
 
 model Customer {
-  id               String                @id @default(cuid())
+  id               String              @id @default(cuid())
   shopId           String
   firstName        String
   lastName         String
@@ -171,15 +171,15 @@ model Customer {
   email            String?
   gender           Gender?
   notes            String?
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
-  shop             Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  shop             Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
   measurements     MeasurementRecord[]
   jobs             Job[]
   invoices         Invoice[]
   messages         CustomerMessage[]
   measurementLinks MeasurementLink[]
-  styleProfile     CustomerStyleProfile?
+  // styleProfile     CustomerStyleProfile?
 
   @@index([shopId, firstName, lastName])
   @@index([phone])
@@ -206,34 +206,35 @@ model MeasurementRecord {
 }
 
 model Job {
-  id             String        @id @default(cuid())
+  id             String                @id @default(cuid())
   shopId         String
   customerId     String
   title          String
   description    String?
-  status         JobStatus     @default(PENDING)
-  priority       Int           @default(3)
+  status         JobStatus             @default(PENDING)
+  priority       Int                   @default(3)
   dueDate        DateTime
   reminderSentAt DateTime?
-  totalPrice     Decimal?      @db.Decimal(10, 2)
-  depositAmount  Decimal?      @db.Decimal(10, 2)
+  totalPrice     Decimal?              @db.Decimal(10, 2)
+  depositAmount  Decimal?              @db.Decimal(10, 2)
   depositPaidAt  DateTime?
   measurementId  String?
   createdById    String
   assignedToId   String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  shop           Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  customer       Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  createdBy      User          @relation("JobsCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  assignedTo     User?         @relation("JobsAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  measurement    MeasurementRecord? @relation(fields: [measurementId], references: [id], onDelete: SetNull)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  shop           Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer       Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdBy      User                  @relation("JobsCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  assignedTo     User?                 @relation("JobsAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  measurement    MeasurementRecord?    @relation(fields: [measurementId], references: [id], onDelete: SetNull)
   invoice        Invoice?
   materials      JobMaterial[]
   tasks          JobTask[]
   comments       JobComment[]
   styleLink      StyleSelectionLink?
-  trackingCode   String        @unique @default("")
+  trackingCode   String                @unique @default("")
+  styleProfile   CustomerStyleProfile?
 
   @@index([shopId, status, dueDate])
   @@index([customerId])
@@ -268,21 +269,21 @@ model JobMaterial {
 }
 
 model JobTask {
-  id               String   @id @default(cuid())
-  jobId            String
-  garmentType      String
-  description      String?
-  quantity         Int      @default(1)
-  unitPrice        Decimal? @db.Decimal(10, 2)
-  selectionMode    StyleSelectionMode?
-  catalogItemId    String?
-  uploadedImageUrl String?
+  id                String              @id @default(cuid())
+  jobId             String
+  garmentType       String
+  description       String?
+  quantity          Int                 @default(1)
+  unitPrice         Decimal?            @db.Decimal(10, 2)
+  selectionMode     StyleSelectionMode?
+  catalogItemId     String?
+  uploadedImageUrl  String?
   uploadedImagePath String?
-  materialNotes    String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  job              Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  catalogItem      CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  materialNotes     String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  job               Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  catalogItem       CatalogItem?        @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
 
   @@index([jobId])
   @@index([catalogItemId])
@@ -443,18 +444,19 @@ model CatalogItem {
 }
 
 model CustomerStyleProfile {
-  id                String              @id @default(cuid())
-  customerId        String              @unique
+  id    String @id @default(cuid())
+  jobId String @unique
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
   selectionMode     StyleSelectionMode?
   catalogItemId     String? // set when mode = CATALOG
   uploadedImageUrl  String? // set when mode = UPLOAD
   uploadedImagePath String? // ImageKit path for deletion
   notes             String?
   updatedAt         DateTime            @updatedAt
-  customer          Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  //customer          Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
   catalogItem       CatalogItem?        @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
 
-  @@index([customerId])
+  @@index([jobId])
 }
 
 model AuditLog {

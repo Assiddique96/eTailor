@@ -6,16 +6,16 @@ import { db } from "@/lib/db";
 import { generateTrackingCode } from "@/lib/tracking";
 
 const createJobSchema = z.object({
-  customerId:      z.string().min(1),
-  title:           z.string().min(1),
-  description:     z.string().optional(),
-  dueDate:         z.coerce.date(),
-  totalPrice:      z.number().nonnegative().optional(),
-  assignedToId:    z.string().optional(),
-  priority:        z.number().int().min(1).max(5).default(3),
-  depositAmount:   z.number().nonnegative().optional(),
-  depositPaid:     z.boolean().default(false),
-  tasks:           z.array(z.object({
+  customerId:    z.string().min(1),
+  title:         z.string().min(1),
+  description:   z.string().optional(),
+  dueDate:       z.coerce.date(),
+  totalPrice:    z.number().nonnegative().optional(),
+  assignedToId:  z.string().optional(),
+  priority:      z.number().int().min(1).max(5).default(3),
+  depositAmount: z.number().nonnegative().optional(),
+  depositPaid:   z.boolean().default(false),
+  tasks:         z.array(z.object({
     garmentType:   z.string().min(1),
     description:   z.string().optional(),
     quantity:      z.number().int().min(1).default(1),
@@ -40,7 +40,6 @@ export const GET = withAuth({ permission: "jobs.read" }, async ({ request, user 
   };
 
   if (unbilled === "true") {
-    // Only jobs that don't have an invoice associated
     where.invoice = { is: null };
   }
 
@@ -61,6 +60,10 @@ export const GET = withAuth({ permission: "jobs.read" }, async ({ request, user 
       materials:  true,
       tasks:      true,
       invoice:    true,
+      // Include styleProfile in list views if your components need to access it
+      styleProfile: {
+        include: { catalogItem: true }
+      },
       _count:     { select: { comments: true } },
     },
     orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
@@ -84,9 +87,7 @@ export const POST = withAuth({ permission: "jobs.write" }, async ({ request, use
   });
   if (!customer) throw new ApiError("Customer not found.", 404);
 
-  const customerStyle = await db.customerStyleProfile.findUnique({
-    where: { customerId: body.customerId },
-  });
+  // ❌ REMOVED: Old lookup call checking for the non-existent customerId relation workspace
 
   async function tryCreate(code: string): Promise<Awaited<ReturnType<typeof db.job.create>>> {
     try {
@@ -113,10 +114,18 @@ export const POST = withAuth({ permission: "jobs.write" }, async ({ request, use
               materialNotes: task.materialNotes,
             })),
           },
+          // --- RELATIONAL FIX: Provision a fresh, empty style profile tied directly to this job's ID ---
+          styleProfile: {
+            create: {
+              selectionMode: "IMPRESS_ME",
+              notes: "Initial job creation tracking profile blueprint.",
+            },
+          },
         },
         include: {
           tasks: true,
           customer: true,
+          styleProfile: true, // Returning it ensures full object metadata matches client requirements
         },
       });
     } catch (e: unknown) {

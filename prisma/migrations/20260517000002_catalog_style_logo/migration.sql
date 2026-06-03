@@ -47,10 +47,10 @@ ALTER TABLE "CatalogItem" ADD CONSTRAINT "CatalogItem_shopId_fkey"
 ALTER TABLE "CatalogItem" ADD CONSTRAINT "CatalogItem_categoryId_fkey"
     FOREIGN KEY ("categoryId") REFERENCES "CatalogCategory"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- CustomerStyleProfile
+-- 1. Create the clean CustomerStyleProfile table matching your exact prisma file layout
 CREATE TABLE "CustomerStyleProfile" (
     "id"                  TEXT NOT NULL,
-    "customerId"          TEXT NOT NULL,
+    "jobId"               TEXT NOT NULL,
     "selectionMode"       "StyleSelectionMode",
     "catalogItemId"       TEXT,
     "uploadedImageUrl"    TEXT,
@@ -59,9 +59,16 @@ CREATE TABLE "CustomerStyleProfile" (
     "updatedAt"           TIMESTAMP(3) NOT NULL,
     CONSTRAINT "CustomerStyleProfile_pkey" PRIMARY KEY ("id")
 );
-CREATE UNIQUE INDEX "CustomerStyleProfile_customerId_key" ON "CustomerStyleProfile"("customerId");
-CREATE INDEX "CustomerStyleProfile_customerId_idx" ON "CustomerStyleProfile"("customerId");
-ALTER TABLE "CustomerStyleProfile" ADD CONSTRAINT "CustomerStyleProfile_customerId_fkey"
-    FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- 2. Create the required Unique constraint on jobId so the 1-to-1 relationship behaves properly
+CREATE UNIQUE INDEX "CustomerStyleProfile_jobId_key" ON "CustomerStyleProfile"("jobId");
+
+-- 3. Create the lookup Index optimization
+CREATE INDEX "CustomerStyleProfile_jobId_idx" ON "CustomerStyleProfile"("jobId");
+
+-- 4. Apply Foreign Key constraints pointing to Job and CatalogItem tables
+ALTER TABLE "CustomerStyleProfile" ADD CONSTRAINT "CustomerStyleProfile_jobId_fkey"
+    FOREIGN KEY ("jobId") REFERENCES "Job"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
 ALTER TABLE "CustomerStyleProfile" ADD CONSTRAINT "CustomerStyleProfile_catalogItemId_fkey"
     FOREIGN KEY ("catalogItemId") REFERENCES "CatalogItem"("id") ON DELETE SET NULL ON UPDATE CASCADE;
